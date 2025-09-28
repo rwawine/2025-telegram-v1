@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Лог {{ log_name }}{% endblock %}
+{% block page_title %}Просмотр лога{% endblock %}
+{% block page_subtitle %}{{ log_name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-title mb-0">{{ log_name }}</div>
+        <form method="GET" class="d-flex align-items-center gap-2" action="{{ url_for('admin.view_log', log_name=log_name) }}">
+            <label class="form-label mb-0">Строк:</label>
+            <select name="lines" class="form-select form-select-sm">
+                <option value="200">200</option>
+                <option value="500" selected>500</option>
+                <option value="1000">1000</option>
+                <option value="5000">5000</option>
+            </select>
+            <a class="btn btn-outline btn-sm" href="{{ url_for('admin.download_log', log_name=log_name) }}">Скачать</a>
+            <a class="btn btn-outline btn-sm" href="{{ url_for('admin.system_page') }}">Назад</a>
+        </form>
+    </div>
+    <div class="card-body">
+        <pre style="white-space: pre-wrap; background: var(--color-gray-50); padding: var(--space-3); border-radius: var(--radius-md); max-height: 70vh; overflow: auto;">{{ content }}</pre>
+    </div>
+{% endblock %}
+
+

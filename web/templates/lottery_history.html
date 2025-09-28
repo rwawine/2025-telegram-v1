@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}История розыгрышей{% endblock %}
+{% block page_title %}История розыгрышей{% endblock %}
+{% block page_subtitle %}Список прошедших розыгрышей{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Розыгрыши</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Дата</th>
+                        <th>Победителей</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in runs %}
+                    <tr>
+                        <td>#{{ r.id }}</td>
+                        <td>{{ r.executed_at }}</td>
+                        <td>{{ r.winners_count }}</td>
+                        <td>
+                            <a class="btn btn-sm btn-outline" href="{{ url_for('admin.winners_list', run_id=r.id) }}">Победители</a>
+                            <a class="btn btn-sm btn-outline" href="{{ url_for('admin.export_winners', run_id=r.id) }}">Экспорт</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">Розыгрыши не найдены</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}
+
+

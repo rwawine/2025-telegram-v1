@@ -46,6 +46,15 @@ class AdminDatabase:
             tickets_open = conn.execute(
                 "SELECT COUNT(*) FROM support_tickets WHERE status='open'"
             ).fetchone()[0]
+            tickets_in_progress = conn.execute(
+                "SELECT COUNT(*) FROM support_tickets WHERE status='in_progress'"
+            ).fetchone()[0]
+            tickets_closed = conn.execute(
+                "SELECT COUNT(*) FROM support_tickets WHERE status='closed'"
+            ).fetchone()[0]
+            failed_broadcasts = conn.execute(
+                "SELECT COUNT(*) FROM broadcast_jobs WHERE status='failed'"
+            ).fetchone()[0]
             total_winners = conn.execute(
                 "SELECT COUNT(*) FROM winners"
             ).fetchone()[0]
@@ -55,6 +64,9 @@ class AdminDatabase:
             "pending_participants": pending,
             "rejected_participants": rejected,
             "open_tickets": tickets_open,
+            "tickets_in_progress": tickets_in_progress,
+            "tickets_closed": tickets_closed,
+            "failed_broadcasts": failed_broadcasts,
             "total_winners": total_winners,
         }
 
@@ -286,4 +298,35 @@ class AdminDatabase:
             rows = conn.execute(query, params).fetchall()
             total = conn.execute(count_query, count_params).fetchone()[0]
         return rows, total
+
+    def get_moderation_activity(self) -> Dict[str, int]:
+        with self._connect() as conn:
+            processed_today = conn.execute(
+                "SELECT COUNT(*) FROM participants WHERE date(updated_at)=date('now') AND status IN ('approved','rejected')"
+            ).fetchone()[0]
+            approved_today = conn.execute(
+                "SELECT COUNT(*) FROM participants WHERE date(updated_at)=date('now') AND status='approved'"
+            ).fetchone()[0]
+            rejected_today = conn.execute(
+                "SELECT COUNT(*) FROM participants WHERE date(updated_at)=date('now') AND status='rejected'"
+            ).fetchone()[0]
+        return {
+            "processed_today": processed_today,
+            "approved_today": approved_today,
+            "rejected_today": rejected_today,
+        }
+
+    def get_top_rejection_reasons(self, limit: int = 5) -> List[sqlite3.Row]:
+        with self._connect() as conn:
+            return conn.execute(
+                """
+                SELECT admin_notes as reason, COUNT(*) as cnt
+                FROM participants
+                WHERE status='rejected' AND admin_notes IS NOT NULL AND TRIM(admin_notes)<>''
+                GROUP BY admin_notes
+                ORDER BY cnt DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
 

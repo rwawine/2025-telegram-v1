@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Победители{% endblock %}
+{% block page_title %}Список победителей{% endblock %}
+{% block page_subtitle %}Фильтрация по розыгрышам{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title">Фильтр</h2>
+    </div>
+    <div class="card-body">
+        <form method="GET" class="d-flex align-items-end gap-2">
+            <div class="form-group">
+                <label class="form-label">Розыгрыш</label>
+                <select name="run_id" class="form-select">
+                    <option value="">Все</option>
+                    {% for r in runs %}
+                    <option value="{{ r.id }}" {% if selected_run == r.id %}selected{% endif %}>#{{ r.id }} — {{ r.executed_at }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="btn btn-primary" type="submit">Показать</button>
+            <a class="btn btn-outline" href="{{ url_for('admin.export_winners', run_id=selected_run) }}">Экспорт</a>
+        </form>
+    </div>
+ </div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Победители</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Имя</th>
+                        <th>Контакты</th>
+                        <th>Розыгрыш</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in winners %}
+                    <tr>
+                        <td>{{ w.position }}</td>
+                        <td><a href="{{ url_for('admin.winner_detail', winner_id=w.id) }}">{{ w.full_name or ('ID ' ~ w.participant_id) }}</a></td>
+                        <td class="text-muted small">@{{ w.username }} {{ w.phone_number }}</td>
+                        <td>#{{ w.draw_number }} — {{ w.draw_date }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <a class="btn btn-sm btn-outline" href="{{ url_for('admin.winner_detail', winner_id=w.id) }}">Открыть</a>
+                                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Перерозыгрыш позиции #{{ w.position }}?" data-bs-body='<div class="mb-2">Укажите причину перерозыгрыша:</div><input type="text" class="form-control" id="rerollReasonInput{{ w.id }}" placeholder="Причина" required oninput="document.querySelector(`#confirmActionForm input[name=reason]`)?.setAttribute(`value`, this.value)">' data-bs-action="{{ url_for('admin.reroll_winner', winner_id=w.id) }}" data-bs-fields='{"reason":""}'>🔄</button>
+                                <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Удалить победителя?" data-bs-body="Это действие нельзя отменить." data-bs-action="{{ url_for('admin.delete_winner', winner_id=w.id) }}">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Победители не найдены</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

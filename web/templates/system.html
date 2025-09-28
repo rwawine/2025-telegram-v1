@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Система{% endblock %}
+{% block page_title %}Система{% endblock %}
+{% block page_subtitle %}Конфигурация, состояние и логи{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-2 gap-6 mb-6">
+    <div class="card">
+        <div class="card-header"><i class="fa-solid fa-sliders me-2"></i>Конфигурация</div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-4">WEB</dt>
+                <dd class="col-sm-8"><code>{{ config.WEB_HOST }}:{{ config.WEB_PORT }}</code></dd>
+                <dt class="col-sm-4">Uploads</dt>
+                <dd class="col-sm-8"><code>{{ config.UPLOAD_FOLDER }}</code></dd>
+                <dt class="col-sm-4">Exports</dt>
+                <dd class="col-sm-8"><code>{{ config.EXPORT_FOLDER }}</code></dd>
+                <dt class="col-sm-4">Logs</dt>
+                <dd class="col-sm-8"><code>{{ config.LOG_FOLDER }}</code></dd>
+                <dt class="col-sm-4">База данных</dt>
+                <dd class="col-sm-8"><code>{{ config.DATABASE_PATH }}</code></dd>
+            </dl>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><i class="fa-solid fa-heart-pulse me-2"></i>Состояние</div>
+        <div class="card-body">
+            <div class="d-flex flex-column gap-2">
+                <div>DB: {% if health.database_exists %}<span class="badge badge-light-success">OK</span>{% else %}<span class="badge badge-light-danger">Нет</span>{% endif %}</div>
+                <div>Uploads: {% if health.uploads_exists %}<span class="badge badge-light-success">OK</span>{% else %}<span class="badge badge-light-danger">Нет</span>{% endif %}</div>
+                <div>Exports: {% if health.exports_exists %}<span class="badge badge-light-success">OK</span>{% else %}<span class="badge badge-light-danger">Нет</span>{% endif %}</div>
+                <div>Logs: {% if health.logs_exists %}<span class="badge badge-light-success">OK</span>{% else %}<span class="badge badge-light-danger">Нет</span>{% endif %}</div>
+                <div>Время сервера: <code>{{ health.time }}</code></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="card-title mb-0"><i class="fa-solid fa-file-lines me-2"></i>Логи</h2>
+        <a class="btn btn-outline btn-sm" href="{{ url_for('admin.system_page') }}">Обновить</a>
+    </div>
+    <div class="card-body">
+        {% if logs %}
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead><tr><th>Файл</th><th>Размер</th><th>Изменён</th><th></th></tr></thead>
+                <tbody>
+                    {% for l in logs %}
+                    <tr>
+                        <td class="text-mono">{{ l.name }}</td>
+                        <td>{{ (l.size // 1024) }} КБ</td>
+                        <td>{{ l.mtime }}</td>
+                        <td class="text-end"><a class="btn btn-sm btn-outline" href="{{ url_for('admin.view_log', log_name=l.name) }}">Открыть</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-muted">Логи не найдены</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+

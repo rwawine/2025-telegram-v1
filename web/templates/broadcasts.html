@@ -28,7 +28,7 @@
         <div class="card h-100">
             <div class="card-body">
                 <p class="card-text text-muted mb-1">Отправлено</p>
-                <h4 class="card-title mb-0">{{ broadcasts|selectattr('status', 'equalto', 'completed')|list|length }}</h4>
+                <h4 class="card-title mb-0">{{ by_status.completed if by_status else (broadcasts|selectattr('status', 'equalto', 'completed')|list|length) }}</h4>
             </div>
         </div>
     </div>
@@ -36,7 +36,7 @@
         <div class="card h-100">
             <div class="card-body">
                 <p class="card-text text-muted mb-1">В процессе</p>
-                <h4 class="card-title mb-0">{{ broadcasts|selectattr('status', 'equalto', 'sending')|list|length }}</h4>
+                <h4 class="card-title mb-0">{{ by_status.sending if by_status else (broadcasts|selectattr('status', 'equalto', 'sending')|list|length) }}</h4>
             </div>
         </div>
     </div>
@@ -44,11 +44,23 @@
         <div class="card h-100">
             <div class="card-body">
                 <p class="card-text text-muted mb-1">Черновики</p>
-                <h4 class="card-title mb-0">{{ broadcasts|selectattr('status', 'equalto', 'draft')|list|length }}</h4>
+                <h4 class="card-title mb-0">{{ by_status.draft if by_status else (broadcasts|selectattr('status', 'equalto', 'draft')|list|length) }}</h4>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Audience breakdown -->
+{% if by_audience %}
+<div class="card mb-4">
+    <div class="card-header"><i class="fa-solid fa-filter me-2"></i>Аудитории</div>
+    <div class="card-body">
+        {% for k,v in by_audience.items() %}
+        <span class="badge bg-secondary me-2">{{ k }}: {{ v }}</span>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 
 <!-- Broadcast List -->
 <div class="card">
@@ -87,7 +99,7 @@
                         <td class="text-center">
                             {% set progress = ((broadcast.sent_count or 0) / (broadcast.total_recipients or 1) * 100)|round %}
                             <div class="progress" style="height: 8px;">
-                                <div class="progress-bar" role="progressbar" style="width: {{ progress }}%;" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                <div class="progress-bar" role="progressbar" data-progress="{{ progress }}" style="width: 0%;" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"></div>
                             </div>
                             <div class="small text-muted mt-1">{{ progress }}% ({{ broadcast.sent_count or 0 }}/{{ broadcast.total_recipients or 0 }})</div>
                         </td>
@@ -390,6 +402,15 @@ document.addEventListener('alpine:init', () => {
             }
         }
     }));
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.progress-bar[data-progress]').forEach(function(el){
+        var p = parseInt(el.getAttribute('data-progress')||'0', 10);
+        if (isNaN(p) || p < 0) p = 0; if (p > 100) p = 100;
+        el.style.width = p + '%';
+    });
 });
 </script>
 {% endblock %}

@@ -32,4 +32,20 @@ def create_app(config, testing=False) -> Flask:
     # Update credentials with hashed password
     credentials = init_login_manager(app, credentials)
     register_routes(app)
+    # Expose helper to Jinja: check if endpoint exists
+    def has_endpoint(name: str) -> bool:
+        return name in app.view_functions
+
+    app.jinja_env.globals['has_endpoint'] = has_endpoint
+
+    # Global stats injector for sidebar/header counters
+    @app.context_processor
+    def inject_global_stats():
+        try:
+            from database.admin_queries import AdminDatabase
+            db = AdminDatabase(db_path=app.config["DATABASE_PATH"])
+            stats = db.get_statistics()
+            return {"global_stats": stats}
+        except Exception:
+            return {"global_stats": {}}
     return app

@@ -1,163 +1,172 @@
 {% extends "base.html" %}
 
-{% block title %}Участники - Админ-панель{% endblock %}
+{% block title %}Участники - Админ панель{% endblock %}
+{% block page_title %}Управление участниками{% endblock %}
+{% block page_subtitle %}Модерация заявок и управление статусами участников{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Участники</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <a href="#" class="btn btn-sm btn-outline-secondary">
-            <i class="fa-solid fa-download me-1"></i>Экспорт
-        </a>
-    </div>
-</div>
-
-<!-- Filters -->
-<div class="card mb-4">
+<!-- Фильтры -->
+<div class="card mb-6">
     <div class="card-header">
-        Фильтры
+        <h2 class="card-title">Фильтры и поиск</h2>
     </div>
     <div class="card-body">
-        <form method="GET" class="row g-3 align-items-end" action="{{ url_for('admin.participants') }}">
-            <div class="col-md-5">
-                <label for="search" class="form-label">Поиск</label>
-                <input type="text" name="search" id="search" class="form-control" placeholder="Поиск по имени, телефону..." value="{{ search_query }}">
+        <form method="GET" class="grid grid-cols-4 gap-4">
+            <div class="form-group">
+                <label class="form-label">Поиск</label>
+                <input type="text" class="form-control" name="search" 
+                       value="{{ search_query or '' }}" placeholder="Имя, телефон, email...">
             </div>
-            <div class="col-md-4">
-                <label for="status" class="form-label">Статус</label>
-                <select id="status" name="status" class="form-select">
+            <div class="form-group">
+                <label class="form-label">Статус</label>
+                <select name="status" class="form-control">
                     <option value="">Все статусы</option>
-                    <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>На рассмотрении</option>
+                    <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>Ожидает</option>
                     <option value="approved" {% if current_status == 'approved' %}selected{% endif %}>Одобрено</option>
                     <option value="rejected" {% if current_status == 'rejected' %}selected{% endif %}>Отклонено</option>
                 </select>
             </div>
-            <div class="col-md-3 d-grid">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fa-solid fa-search me-2"></i>Поиск
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Mass Actions -->
-{% if participants %}
-<div class="card mb-4" x-data="{ show: false }" x-init="$watch('$store.selection.count', value => show = value > 0)" x-show="show" x-transition>
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Массовые действия</span>
-        <span class="badge bg-primary">Выбрано: <span x-text="$store.selection.count"></span></span>
-    </div>
-    <div class="card-body">
-        <form method="POST" action="{{ url_for('admin.participants_mass_update') }}" id="massActionForm" class="row g-3 align-items-end">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <input type="hidden" name="participant_ids" :value="$store.selection.ids">
-            <div class="col-md-4">
-                <label for="massStatus" class="form-label">Новый статус</label>
-                <select id="massStatus" name="status" class="form-select" required>
-                    <option value="">Выберите...</option>
-                    <option value="approved">Одобрить</option>
-                    <option value="rejected">Отклонить</option>
+            <div class="form-group">
+                <label class="form-label">На странице</label>
+                <select name="per_page" class="form-control">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
                 </select>
             </div>
-            <div class="col-md-5">
-                <label for="massNotes" class="form-label">Комментарий</label>
-                <input type="text" name="notes" id="massNotes" class="form-control" placeholder="Для всех выбранных...">
-            </div>
-            <div class="col-md-3 d-grid">
-                <button type="submit" class="btn btn-secondary">Применить</button>
-            </div>
-            <div class="col-12">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="send_notification" id="mass_send_notification" checked>
-                    <label class="form-check-label" for="mass_send_notification">
-                        Отправить уведомления пользователям в Telegram
-                    </label>
-                </div>
+            <div class="form-group d-flex align-items-end">
+                <button type="submit" class="btn btn-primary">🔍 Найти</button>
+                <button type="button" class="btn btn-outline ms-2" data-bs-toggle="modal" data-bs-target="#importModal">⬆️ Импорт</button>
+                <a class="btn btn-outline ms-2" href="{{ url_for('admin.export_participants', status=current_status) }}">⬇️ Экспорт</a>
             </div>
         </form>
     </div>
 </div>
-{% endif %}
 
-<!-- Participants Table -->
-<div class="card" x-data="participantsTable()">
+<!-- Статистика -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="card metric-card hover-elevate">
+        <div class="card-body">
+            <div class="metric-title">Всего участников</div>
+            <div class="metric-value">{{ total or 0 }}</div>
+            <i class="fas fa-users metric-icon"></i>
+        </div>
+    </div>
+    <div class="card metric-card hover-elevate">
+        <div class="card-body">
+            <div class="metric-title">Ожидают проверки</div>
+            <div class="metric-value">{{ (stats.by_status.get('pending', 0) if stats and stats.by_status else 0) }}</div>
+            <i class="fas fa-clock metric-icon"></i>
+        </div>
+    </div>
+    <div class="card metric-card hover-elevate">
+        <div class="card-body">
+            <div class="metric-title">Одобрено</div>
+            <div class="metric-value">{{ (stats.by_status.get('approved', 0) if stats and stats.by_status else 0) }}</div>
+            <i class="fas fa-check-circle metric-icon"></i>
+        </div>
+    </div>
+    <div class="card metric-card hover-elevate">
+        <div class="card-body">
+            <div class="metric-title">Отклонено</div>
+            <div class="metric-value">{{ (stats.by_status.get('rejected', 0) if stats and stats.by_status else 0) }}</div>
+            <i class="fas fa-times-circle metric-icon"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Таблица участников -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Список участников</h2>
+    </div>
     <div class="card-body p-0">
-        {% if participants %}
         <div class="table-responsive">
-            <table class="table table-hover mb-0" id="participantsTable">
+            <form id="massUpdateForm" method="POST" action="{{ url_for('admin.participants_mass_update') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="next" value="{{ request.full_path }}"/>
+                <input type="hidden" name="massParticipantIds" id="massParticipantIds" value=""/>
+                <input type="hidden" name="status" id="massUpdateStatus" value=""/>
+            </form>
+            <table class="data-table">
                 <thead>
                     <tr>
-                        <th scope="col" class="px-3"><input type="checkbox" class="form-check-input" @change="toggleSelectAll($event)"></th>
-                        <th scope="col">Имя</th>
-                        <th scope="col">Статус</th>
-                        <th scope="col">Дата</th>
-                        <th scope="col">Лифлет</th>
-                        <th scope="col" class="text-end pe-3">Действия</th>
+                        <th style="width: 40px;"><input type="checkbox" id="select-all"></th>
+                        <th>Участник</th>
+                        <th>Контакты</th>
+                        <th>Дата</th>
+                        <th>Статус</th>
+                        <th>Фото</th>
+                        <th>Действия</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in participants %}
                     <tr>
-                        <td class="px-3"><input type="checkbox" class="form-check-input participant-checkbox" value="{{ p.id }}" x-model="selectedIds"></td>
+                        <td><input type="checkbox" class="row-select" value="{{ p.id }}"></td>
                         <td>
-                            <div class="fw-bold">{{ p.full_name }}</div>
-                            <div class="text-muted small">{{ p.phone_number }}</div>
-                        </td>
-                        <td>
-                            {% if p.status == 'approved' %}
-                                <span class="badge badge-light-success">Одобрено</span>
-                            {% elif p.status == 'pending' %}
-                                <span class="badge badge-light-warning">На рассмотрении</span>
-                            {% elif p.status == 'rejected' %}
-                                <span class="badge badge-light-danger">Отклонено</span>
+                            <div style="font-weight: 600;">{{ p.full_name or p.name or 'Не указано' }}</div>
+                            {% if p.card_number %}
+                            <div class="text-mono" style="font-size: 12px; color: var(--color-gray-500);">
+                                Карта: {{ p.card_number }}
+                            </div>
                             {% endif %}
                         </td>
-                        <td class="text-muted small">{{ p.registration_date if p.registration_date else 'N/A' }}</td>
                         <td>
-                            {% if p.photo_path %}
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#photoModal"
-                                    data-bs-src="{{ url_for('admin.serve_upload', filename=p.photo_path.split('/')[-1] if p.photo_path else '') }}"
-                                    data-bs-title="{{ p.full_name }}">
-                                <i class="fa-solid fa-image"></i>
-                            </button>
-                            {% else %}
-                            <span class="text-muted">-</span>
-                            {% endif %}
+                            <div style="font-size: 12px;">
+                                {{ p.phone_number or p.phone }}<br>
+                                {{ p.email }}<br>
+                                <span style="color: var(--color-primary);">{{ p.telegram_id }}</span>
+                            </div>
                         </td>
-                        <td class="text-end pe-3">
-                            <a href="{{ url_for('admin.participant_detail', participant_id=p.id) }}" class="btn btn-sm btn-outline-secondary">
-                                <i class="fa-solid fa-eye me-1"></i>Подробнее
-                            </a>
+                        <td>{{ p.registration_date or p.created_at }}</td>
+                        <td>
+                            <span class="status-badge status-{{ p.status }}">
+                                {% if p.status == 'pending' %}Ожидает
+                                {% elif p.status == 'approved' %}Одобрено
+                                {% elif p.status == 'rejected' %}Отклонено
+                                {% else %}{{ p.status }}{% endif %}
+                            </span>
                         </td>
+                        <td>
+                            <span class="status-badge {% if p.has_photo %}status-approved{% else %}status-archived{% endif %}" 
+                                  style="font-size: 11px;">
+                                {% if p.has_photo %}Есть{% else %}Нет{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline" data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin.participant_detail', participant_id=p.id) }}">👁️ Просмотр</a></li>
+                                    {% if p.status == 'pending' %}
+                                    <li><a class="dropdown-item text-success" href="#" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Одобрить участника?" data-bs-body="Подтвердить одобрение заявки?" data-bs-action="{{ url_for('admin.update_single_participant_status', participant_id=p.id) }}" data-bs-fields='{"status":"approved"}'>✅ Одобрить</a></li>
+                                    <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Отклонить участника?" data-bs-body="Подтвердить отклонение заявки?" data-bs-action="{{ url_for('admin.update_single_participant_status', participant_id=p.id) }}" data-bs-fields='{"status":"rejected"}'>❌ Отклонить</a></li>
+                                    {% endif %}
+                                    <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Удалить участника?" data-bs-body="Это действие нельзя отменить." data-bs-action="{{ url_for('admin.delete_participant', participant_id=p.id) }}">🗑️ Удалить</a></li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">Нет участников по выбранным условиям</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        {% else %}
-        <div class="text-center py-5">
-            <i class="fa-solid fa-users-slash fa-3x text-light-emphasis"></i>
-            <h5 class="mt-3">Участники не найдены</h5>
-            <p class="text-muted">Попробуйте изменить фильтры или добавить новых участников.</p>
-            <a href="{{ url_for('admin.participants') }}" class="btn btn-outline-secondary mt-3">Сбросить фильтры</a>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Photo Modal -->
-<div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="photoModalLabel">Фото лифлета</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center">
-                <img src="" id="photoModalImage" class="img-fluid rounded" alt="Лифлет">
+        
+        <!-- Массовые действия -->
+        <div id="bulk-actions" style="display: none; background: var(--color-primary); color: white; padding: var(--space-3);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span id="selected-count">Выбрано: 0</span>
+                <div>
+                    <button class="btn btn-success btn-sm" id="bulk-approve">✅ Одобрить</button>
+                    <button class="btn btn-danger btn-sm" id="bulk-reject">❌ Отклонить</button>
+                </div>
             </div>
         </div>
     </div>
@@ -166,58 +175,107 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('alpine:init', () => {
-    Alpine.store('selection', {
-        ids: [],
-        count: 0
+document.addEventListener('DOMContentLoaded', function() {
+    // Массовые действия
+    const selectAllCheckbox = document.getElementById('select-all');
+    const rowSelects = document.querySelectorAll('.row-select');
+    const bulkActions = document.getElementById('bulk-actions');
+    const selectedCount = document.getElementById('selected-count');
+
+    function updateBulkActions() {
+        const checkedRows = document.querySelectorAll('.row-select:checked');
+        const count = checkedRows.length;
+        
+        if (count > 0) {
+            bulkActions.style.display = 'block';
+            selectedCount.textContent = `Выбрано: ${count}`;
+        } else {
+            bulkActions.style.display = 'none';
+        }
+    }
+
+    selectAllCheckbox?.addEventListener('change', function() {
+        rowSelects.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateBulkActions();
     });
 
-    Alpine.data('participantsTable', () => ({
-        selectedIds: [],
-        init() {
-            this.$watch('selectedIds', (value) => {
-                Alpine.store('selection').ids = value;
-                Alpine.store('selection').count = value.length;
-            });
-        },
-        toggleSelectAll(event) {
-            const checkboxes = document.querySelectorAll('.participant-checkbox');
-            if (event.target.checked) {
-                this.selectedIds = Array.from(checkboxes).map(cb => cb.value);
-            } else {
-                this.selectedIds = [];
-            }
-        }
-    }));
-});
+    rowSelects.forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkActions);
+    });
 
-document.addEventListener('DOMContentLoaded', function () {
-    // Photo Modal Logic
-    var photoModal = document.getElementById('photoModal');
-    if (photoModal) {
-        photoModal.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            var src = button.getAttribute('data-bs-src');
-            var title = button.getAttribute('data-bs-title');
-            
-            var modalTitle = photoModal.querySelector('.modal-title');
-            var modalImage = photoModal.querySelector('#photoModalImage');
-
-            modalTitle.textContent = 'Лифлет: ' + title;
-            modalImage.src = src;
-        });
-    }
-
-    // Mass Actions Form submission
-    const massActionForm = document.getElementById('massActionForm');
-    if (massActionForm) {
-        massActionForm.addEventListener('submit', function(e) {
-            if (Alpine.store('selection').count === 0) {
+    function openMassAction(status) {
+        const ids = Array.from(document.querySelectorAll('.row-select:checked')).map(cb => cb.value);
+        if (ids.length === 0) return;
+        document.getElementById('massParticipantIds').value = ids.join(',');
+        const trigger = document.createElement('button');
+        trigger.setAttribute('data-bs-toggle', 'modal');
+        trigger.setAttribute('data-bs-target', '#confirmationModal');
+        trigger.setAttribute('data-bs-title', status === 'approved' ? 'Одобрить выбранных?' : 'Отклонить выбранных?');
+        trigger.setAttribute('data-bs-body', `Будет изменен статус у ${ids.length} участников.`);
+        trigger.setAttribute('data-bs-action', document.getElementById('massUpdateForm').action);
+        trigger.setAttribute('data-bs-fields', JSON.stringify({ status }));
+        document.body.appendChild(trigger);
+        trigger.click();
+        setTimeout(() => trigger.remove(), 0);
+        const confirmForm = document.getElementById('confirmActionForm');
+        if (confirmForm) {
+            confirmForm.onsubmit = (e) => {
                 e.preventDefault();
-                notyf.error('Выберите хотя бы одного участника.');
-            }
-        });
+                document.getElementById('massUpdateStatus').value = status;
+                document.getElementById('massUpdateForm').submit();
+            };
+        }
     }
+
+    document.getElementById('bulk-approve')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        openMassAction('approved');
+    });
+    document.getElementById('bulk-reject')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        openMassAction('rejected');
+    });
+
+    // Hover эффекты для метрик
+    document.querySelectorAll('.metric-card.hover-elevate').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+            this.style.boxShadow = 'var(--shadow-lg)';
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = 'none';
+        });
+    });
 });
 </script>
 {% endblock %}
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin.import_participants') }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">Импорт участников (CSV)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label">CSV файл</label>
+                        <input type="file" class="form-control" id="csvFile" name="file" accept=".csv" required>
+                        <div class="form-text">Поля: telegram_id, username, full_name, phone_number, loyalty_card, photo_path</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Импортировать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1,221 +1,340 @@
 {% extends "base.html" %}
 
-{% block title %}Дашборд - Админ-панель{% endblock %}
+{% block title %}Главная - Админ панель розыгрышей{% endblock %}
+
+{% block page_title %}Главная панель{% endblock %}
+{% block page_subtitle %}Обзор активности системы розыгрышей и ключевые метрики{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Дашборд</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary">
-                <i class="fa-solid fa-download me-1"></i>Экспорт
-            </button>
-        </div>
-        <a href="{{ url_for('admin.participants', status='pending') }}" class="btn btn-sm btn-warning">
-            <i class="fa-solid fa-clock me-1"></i>На рассмотрении
-            {% if stats.by_status.get('pending', 0) > 0 %}
-                <span class="badge bg-dark text-white ms-2">{{ stats.by_status.get('pending', 0) }}</span>
-            {% endif %}
-        </a>
-    </div>
-</div>
 
-<!-- Stats -->
-<div class="row">
-    <div class="col-md-6 col-xl-3 mb-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="card-subtitle mb-2 text-muted">Всего участников</h6>
-                        <h4 class="card-title mb-0">{{ stats.total_participants }}</h4>
-                    </div>
-                    <div class="fs-2 text-primary">
-                        <i class="fa-solid fa-users"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- Быстрые действия -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="card-title">Быстрые действия</h2>
     </div>
-    <div class="col-md-6 col-xl-3 mb-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="card-subtitle mb-2 text-muted">Одобрено</h6>
-                        <h4 class="card-title mb-0">{{ stats.by_status.get('approved', 0) }}</h4>
-                    </div>
-                    <div class="fs-2 text-success">
-                        <i class="fa-solid fa-check-circle"></i>
-                    </div>
+    <div class="card-body">
+        <div class="quick-actions">
+            <a href="{{ url_for('admin.lottery') }}" class="quick-action">
+                <div class="quick-action-icon">
+                    <i class="fas fa-dice"></i>
                 </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-xl-3 mb-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="card-subtitle mb-2 text-muted">На рассмотрении</h6>
-                        <h4 class="card-title mb-0">{{ stats.by_status.get('pending', 0) }}</h4>
-                    </div>
-                    <div class="fs-2 text-warning">
-                        <i class="fa-solid fa-clock"></i>
-                    </div>
+                <div class="quick-action-content">
+                    <h3>Провести розыгрыш</h3>
+                    <p>Запустить новый розыгрыш среди участников</p>
                 </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 col-xl-3 mb-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="card-subtitle mb-2 text-muted">Победители</h6>
-                        <h4 class="card-title mb-0">{{ stats.total_winners }}</h4>
-                    </div>
-                    <div class="fs-2 text-info">
-                        <i class="fa-solid fa-trophy"></i>
-                    </div>
+            </a>
+                
+            <a href="{{ url_for('admin.broadcasts') }}" class="quick-action">
+                <div class="quick-action-icon">
+                    <i class="fas fa-bullhorn"></i>
                 </div>
-            </div>
+                <div class="quick-action-content">
+                    <h3>Начать рассылку</h3>
+                    <p>Отправить сообщение участникам</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('admin.participants', status='pending') }}" class="quick-action">
+                <div class="quick-action-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="quick-action-content">
+                    <h3>Новые заявки</h3>
+                    <p>Модерировать заявки участников</p>
+                    <span class="badge badge-notification">12</span>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('admin.export_participants') }}" class="quick-action">
+                <div class="quick-action-icon">
+                    <i class="fas fa-download"></i>
+                </div>
+                <div class="quick-action-content">
+                    <h3>Экспорт данных</h3>
+                    <p>Скачать отчеты и аналитику</p>
+                </div>
+            </a>
         </div>
     </div>
 </div>
 
-<!-- Recent Participants and Status -->
-<div class="row">
-    <div class="col-lg-8 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Последние регистрации</h5>
+<!-- Карточки метрик -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="card-title">Карточки метрик</h2>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-4 gap-6">
+            <!-- Всего участников -->
+            <div class="card metric-card hover-elevate">
+                <div class="card-body">
+                    <div class="metric-card-content">
+                        <div class="metric-title">Всего участников</div>
+                        <div class="metric-value">{{ stats.total_participants }}</div>
+                        <div class="metric-subtitle">За все время</div>
+                    </div>
+                    <i class="fas fa-users metric-icon"></i>
+                </div>
             </div>
-            <div class="card-body p-0">
-                {% if recent_participants %}
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th scope="col">Имя</th>
-                                <th scope="col">Статус</th>
-                                <th scope="col">Дата</th>
-                                <th scope="col" class="text-end">Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in recent_participants %}
-                            <tr>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <div>
-                                            <div class="fw-bold">{{ p.full_name }}</div>
-                                            <div class="text-muted small">{{ p.phone_number }}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    {% if p.status == 'approved' %}
-                                        <span class="badge badge-light-success">Одобрено</span>
-                                    {% elif p.status == 'pending' %}
-                                        <span class="badge badge-light-warning">На рассмотрении</span>
-                                    {% elif p.status == 'rejected' %}
-                                        <span class="badge badge-light-danger">Отклонено</span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-muted small">{{ p.registration_date if p.registration_date else 'N/A' }}</td>
-                                <td class="text-end">
-                                    <a href="{{ url_for('admin.participant_detail', participant_id=p.id) }}" class="btn btn-sm btn-outline-secondary">Подробнее</a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+
+            <!-- Активность сегодня -->
+            <div class="card metric-card hover-elevate">
+                <div class="card-body">
+                    <div class="metric-card-content">
+                        <div class="metric-title">Одобрено</div>
+                        <div class="metric-value">{{ stats.by_status.get('approved', 0) }}</div>
+                        <div class="metric-subtitle">Статус участников</div>
+                    </div>
+                    <i class="fas fa-chart-line metric-icon"></i>
                 </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="fa-solid fa-inbox fa-3x text-light-emphasis"></i>
-                    <h5 class="mt-3">Нет недавних регистраций</h5>
-                    <p class="text-muted">Новые участники будут отображаться здесь.</p>
+            </div>
+
+            <!-- Открытые тикеты -->
+            <div class="card metric-card hover-elevate">
+                <div class="card-body">
+                    <div class="metric-card-content">
+                        <div class="metric-title">Открытые тикеты</div>
+                        <div class="metric-value">{{ stats.open_tickets or 0 }}</div>
+                        <div class="metric-subtitle">Требуют внимания</div>
+                    </div>
+                    <i class="fas fa-headset metric-icon"></i>
                 </div>
-                {% endif %}
+            </div>
+
+            <!-- Текущий розыгрыш -->
+            <div class="card metric-card hover-elevate">
+                <div class="card-body">
+                    <div class="metric-card-content">
+                        <div class="metric-title">На рассмотрении</div>
+                        <div class="metric-value">{{ stats.by_status.get('pending', 0) }}</div>
+                        <div class="metric-subtitle">Статус участников</div>
+                    </div>
+                    <i class="fas fa-dice metric-icon"></i>
+                </div>
             </div>
         </div>
     </div>
+</div>
 
-    <div class="col-lg-4">
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Статистика по статусам</h5>
+<!-- Оперативные метрики сервисов -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="card-title">Оперативные метрики</h2>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-3 gap-6">
+            <div class="card metric-card hover-elevate">
+                <div class="card-body">
+                    <div class="metric-card-content">
+                        <div class="metric-title">Тикеты в работе</div>
+                        <div class="metric-value">{{ (stats.tickets_in_progress or 0) }}</div>
+                        <div class="metric-subtitle">Назначены модераторам</div>
+                    </div>
+                    <i class="fas fa-briefcase metric-icon"></i>
+                </div>
             </div>
-            <div class="card-body">
-                {% set total = stats.total_participants %}
-                {% if total > 0 %}
-                    <div class="">
-                        {% for status, count in stats.by_status.items() %}
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between mb-1 small">
-                                <span>
-                                {% if status == 'pending' %}На рассмотрении
-                                {% elif status == 'approved' %}Одобрено
-                                {% elif status == 'rejected' %}Отклонено
-                                {% endif %}
-                                </span>
-                                <span>{{ count }} / {{ total }}</span>
-                            </div>
-                            <div class="progress" style="height: 8px;">
-                                {% if total > 0 %}
-                                    {% set progress_width = ((count / total) * 100) | round(0, 'floor') %}
-                                {% else %}
-                                    {% set progress_width = 0 %}
-                                {% endif %}
-                                <div class="progress-bar 
-                                    {% if status == 'approved' %}bg-success
-                                    {% elif status == 'pending' %}bg-warning
-                                    {% elif status == 'rejected' %}bg-danger
-                                    {% else %}bg-secondary
-                                    {% endif %}"
-                                    role="progressbar"
-                                    data-width="{{ progress_width }}"
-                                    aria-valuenow="{{ progress_width }}"
-                                    aria-valuemin="0"
-                                    aria-valuemax="100">
+            <div class="card metric-card hover-elevate">
+                <div class="card-body">
+                    <div class="metric-card-content">
+                        <div class="metric-title">Тикеты закрыты</div>
+                        <div class="metric-value">{{ (stats.tickets_closed or 0) }}</div>
+                        <div class="metric-subtitle">Завершенные обращения</div>
+                    </div>
+                    <i class="fas fa-check metric-icon"></i>
+                </div>
+            </div>
+            <div class="card metric-card hover-elevate">
+                <div class="card-body">
+                    <div class="metric-card-content">
+                        <div class="metric-title">Неудачных рассылок</div>
+                        <div class="metric-value">{{ (stats.failed_broadcasts or 0) }}</div>
+                        <div class="metric-subtitle">Требуют проверки</div>
+                    </div>
+                    <i class="fas fa-triangle-exclamation metric-icon"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Убраны статусы и аналитика по запросу -->
+
+<!-- Розыгрыш -->
+    
+
+<!-- Система поддержки -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="card-title">Система поддержки</h2>
+    </div>
+    <div class="card-body">
+        {% if recent_tickets %}
+            {% for ticket in recent_tickets %}
+            <div class="support-ticket" style="margin-top: var(--space-4);">
+                <div class="ticket-header">
+                    <h3 class="ticket-title">{{ ticket.subject or ticket.title or 'Без темы' }}</h3>
+                    <div class="d-flex gap-2">
+                        <span class="status-badge status-{{ ticket.status or 'open' }}">
+                            {% if ticket.status == 'open' %}Открыт{% elif ticket.status == 'in_progress' %}В работе{% elif ticket.status == 'closed' %}Закрыт{% else %}{{ ticket.status }}{% endif %}
+                        </span>
+                        <span class="status-badge status-archived">{{ ticket.category or 'Общие' }}</span>
+                    </div>
+                </div>
+                <div class="ticket-content">
+                    <p class="ticket-description">{{ ticket.message or ticket.description or '—' }}</p>
+                    <div class="ticket-meta">
+                        <span><i class="fas fa-user"></i> {{ ticket.participant_name or 'Пользователь' }}</span>
+                        <span><i class="fas fa-clock"></i> {{ ticket.created_at or '' }}</span>
+                    </div>
+                    <div class="ticket-actions">
+                        <a href="{{ url_for('admin.support_ticket_detail', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline">👁️ Подробнее</a>
+                        <button class="btn btn-sm btn-success"
+                                data-bs-toggle="modal"
+                                data-bs-target="#confirmationModal"
+                                data-bs-title="Закрыть тикет?"
+                                data-bs-body="Вы уверены, что хотите закрыть тикет?"
+                                data-bs-action="{{ url_for('admin.update_ticket_status', ticket_id=ticket.id) }}"
+                                data-bs-fields='{"status":"closed"}'>Закрыть</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-muted">Нет открытых тикетов</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Управление участниками -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="card-title">Управление участниками</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="select-all" style="margin: 0;">
+                        </th>
+                        <th>Участник</th>
+                        <th>Контакты</th>
+                        <th>Дата регистрации</th>
+                        <th>Статус</th>
+                        <th>Фото</th>
+                        <th style="width: 100px;">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in recent_participants %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="row-select" style="margin: 0;" value="{{ p.id }}">
+                        </td>
+                        <td>
+                            <div>
+                                <div style="font-weight: 600;">{{ p.full_name }}</div>
+                                {% if p.loyalty_card %}
+                                <div class="text-mono" style="font-size: 12px; color: var(--color-gray-500);">
+                                    Карта: {{ p.loyalty_card }}
                                 </div>
+                                {% endif %}
                             </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                <div class="text-center py-4">
-                    <i class="fa-solid fa-chart-pie fa-3x text-light-emphasis"></i>
-                    <h5 class="mt-3">Нет данных</h5>
-                    <p class="text-muted">Статистика появится после регистрации участников.</p>
+                        </td>
+                        <td>
+                            <div style="font-size: 12px;">
+                                <div>{{ p.phone_number }}</div>
+                                {% if p.username %}<div style="color: var(--color-primary);">@{{ p.username }}</div>{% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-size: 13px;">{{ p.registration_date }}</div>
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ p.status }}">
+                                {% if p.status == 'pending' %}Ожидает{% elif p.status == 'approved' %}Одобрено{% elif p.status == 'rejected' %}Отклонено{% else %}{{ p.status }}{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge {% if p.photo_path %}status-approved{% else %}status-archived{% endif %}" style="font-size: 11px;">
+                                {% if p.photo_path %}Есть{% else %}Нет{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin.participant_detail', participant_id=p.id) }}">👁️ Просмотр</a></li>
+                                    {% if p.status == 'pending' %}
+                                    <li><a class="dropdown-item text-success" href="#" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Одобрить участника?" data-bs-body="Подтвердить одобрение заявки?" data-bs-action="{{ url_for('admin.update_single_participant_status', participant_id=p.id) }}" data-bs-fields='{"status":"approved"}'>✅ Одобрить</a></li>
+                                    <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Отклонить участника?" data-bs-body="Подтвердить отклонение заявки?" data-bs-action="{{ url_for('admin.update_single_participant_status', participant_id=p.id) }}" data-bs-fields='{"status":"rejected"}'>❌ Отклонить</a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Массовые действия -->
+        <div id="bulk-actions" style="display: none; background: var(--color-primary); color: white; padding: var(--space-3); border-top: 1px solid var(--color-gray-200);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span id="selected-count">Выбрано: 0</span>
+                <div>
+                    <button class="btn btn-success btn-sm">✅ Одобрить</button>
+                    <button class="btn btn-danger btn-sm" style="margin-left: var(--space-2);">❌ Отклонить</button>
                 </div>
-                {% endif %}
             </div>
         </div>
+    </div>
+</div>
 
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Быстрые действия</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('admin.participants') }}" class="btn btn-outline-secondary">
-                        <i class="fa-solid fa-users me-2"></i>Все участники
-                    </a>
-                    <a href="{{ url_for('admin.settings') }}" class="btn btn-outline-secondary"><i class="fa-solid fa-gears me-2"></i>Настройки</a>
-                    <a href="{{ url_for('admin.lottery') }}" class="btn btn-primary"><i class="fa-solid fa-play me-2"></i>Запустить розыгрыш</a>
-                    <button type="button" class="btn btn-outline-danger"
-                            data-bs-toggle="modal"
-                            data-bs-target="#confirmationModal"
-                            data-bs-title="Подтвердите действие"
-                            data-bs-body="Вы уверены, что хотите очистить кеш? Это действие может повлиять на производительность."
-                            data-bs-action="#">
-                        <i class="fa-solid fa-trash-can me-2"></i>Очистить кеш
-                    </button>
+<!-- Активность модераторов и причины отклонений -->
+<div class="grid grid-cols-2 gap-6">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Активность модераторов</h2>
+        </div>
+        <div class="card-body">
+            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>🎯 Обработано сегодня:</span>
+                    <strong>{{ moderation.processed_today or 0 }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>✅ Одобрено сегодня:</span>
+                    <strong>{{ moderation.approved_today or 0 }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>❌ Отклонено сегодня:</span>
+                    <strong>{{ moderation.rejected_today or 0 }}</strong>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Топ причин отклонения</h2>
+        </div>
+        <div class="card-body">
+            {% if top_reasons %}
+            <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+                {% for r in top_reasons %}
+                <div style="display: flex; justify-content: space-between;">
+                    <span>{{ r['reason'] }}</span>
+                    <strong>{{ r['cnt'] }}</strong>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-muted">Нет данных по причинам</div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -223,10 +342,117 @@
 
 {% block scripts %}
 <script>
-// Set progress bar widths from data attributes
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.progress-bar[data-width]').forEach(function(bar) {
-        bar.style.width = bar.dataset.width + '%';
+    // Массовые действия в таблице
+    const selectAllCheckbox = document.getElementById('select-all');
+    const rowSelects = document.querySelectorAll('.row-select');
+    const bulkActions = document.getElementById('bulk-actions');
+    const selectedCount = document.getElementById('selected-count');
+
+    function updateBulkActions() {
+        const checkedRows = document.querySelectorAll('.row-select:checked');
+        const count = checkedRows.length;
+        
+        if (count > 0) {
+            bulkActions.style.display = 'block';
+            selectedCount.textContent = `Выбрано: ${count}`;
+        } else {
+            bulkActions.style.display = 'none';
+        }
+    }
+
+    selectAllCheckbox?.addEventListener('change', function() {
+        rowSelects.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateBulkActions();
+    });
+
+    rowSelects.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateBulkActions();
+            
+            // Update select all checkbox
+            const totalRows = rowSelects.length;
+            const checkedRows = document.querySelectorAll('.row-select:checked').length;
+            
+            if (selectAllCheckbox) {
+                selectAllCheckbox.indeterminate = checkedRows > 0 && checkedRows < totalRows;
+                selectAllCheckbox.checked = checkedRows === totalRows;
+            }
+        });
+    });
+
+    // Демо переключатель темы
+    const demoThemeToggle = document.getElementById('demo-theme-toggle');
+    demoThemeToggle?.addEventListener('click', function() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        
+        // Update button icon and text
+        const icon = this.querySelector('i');
+        if (newTheme === 'dark') {
+            icon?.classList.replace('fa-moon', 'fa-sun');
+            this.innerHTML = '<i class="fas fa-sun me-2"></i>Светлая тема';
+        } else {
+            icon?.classList.replace('fa-sun', 'fa-moon');
+            this.innerHTML = '<i class="fas fa-moon me-2"></i>Темная тема';
+        }
+    });
+
+    // Hover effects for metric cards
+    document.querySelectorAll('.metric-card.hover-elevate').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+            this.style.boxShadow = 'var(--shadow-lg)';
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = 'none';
+        });
+    });
+
+    // Quick action hover effects
+    document.querySelectorAll('.quick-action').forEach(action => {
+        action.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-1px)';
+            this.style.boxShadow = 'var(--shadow-md)';
+        });
+        
+        action.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = 'none';
+        });
+    });
+
+    // Table row hover effects
+    document.querySelectorAll('.data-table tbody tr').forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = 'var(--color-gray-50)';
+        });
+        
+        row.addEventListener('mouseleave', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.backgroundColor = 'transparent';
+            }
+        });
+    });
+
+    // Animate elements on page load
+    const elements = document.querySelectorAll('.card, .quick-action, .metric-card');
+    elements.forEach((element, index) => {
+        element.style.opacity = '0';
+        element.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+            element.style.transition = 'all 0.3s ease';
+            element.style.opacity = '1';
+            element.style.transform = 'translateY(0)';
+        }, index * 100);
     });
 });
 </script>

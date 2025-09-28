@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Модерация{% endblock %}
+{% block page_title %}Модерация заявок{% endblock %}
+{% block page_subtitle %}Быстрые действия для новых заявок{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="card-title mb-0">Новые заявки</h2>
+        <a class="btn btn-outline btn-sm" href="{{ url_for('admin.participants', status='pending') }}">Открыть список</a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Участник</th>
+                        <th>Контакты</th>
+                        <th>Дата</th>
+                        <th>Фото</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in participants %}
+                    <tr>
+                        <td>
+                            <div style="font-weight: 600;">{{ p.full_name }}</div>
+                            <div class="text-mono" style="font-size: 12px; color: var(--color-gray-500);">ID: {{ p.id }}</div>
+                        </td>
+                        <td class="small">{{ p.phone_number }}<br>@{{ p.username }}</td>
+                        <td>{{ p.registration_date }}</td>
+                        <td>
+                            {% if p.photo_path %}
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#photoModal-{{ p.id }}" title="Просмотр фото">
+                                <span class="status-badge status-approved" style="font-size: 11px;">Есть</span>
+                            </a>
+                            {% else %}
+                            <span class="status-badge status-archived" style="font-size: 11px;">Нет</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a class="btn btn-sm btn-outline" href="{{ url_for('admin.participant_detail', participant_id=p.id) }}">👁️</a>
+                                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Одобрить?" data-bs-body="Подтвердить одобрение заявки?" data-bs-action="{{ url_for('admin.update_single_participant_status', participant_id=p.id) }}" data-bs-fields='{"status":"approved"}'>✅</button>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Отклонить?" data-bs-body='<div class="mb-2">Выберите причину или укажите свою:</div>
+<div class="d-grid gap-2 mb-2">
+<button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelector(`#confirmActionForm input[name=notes]`)?.setAttribute(`value`,`Нечеткое фото лифлета.`)">📷 Нечеткое фото</button>
+<button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelector(`#confirmActionForm input[name=notes]`)?.setAttribute(`value`,`Некорректные данные.`)">📝 Некорректные данные</button>
+<button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelector(`#confirmActionForm input[name=notes]`)?.setAttribute(`value`,`Карта не найдена.`)">💳 Карта не найдена</button>
+<button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.querySelector(`#confirmActionForm input[name=notes]`)?.setAttribute(`value`,`Нарушение правил.`)">⚠️ Нарушение правил</button>
+</div>
+<input type="text" class="form-control" placeholder="Своя причина" oninput="document.querySelector(`#confirmActionForm input[name=notes]`)?.setAttribute(`value`, this.value)">' data-bs-action="{{ url_for('admin.update_single_participant_status', participant_id=p.id) }}" data-bs-fields='{"status":"rejected","notes":""}'>❌</button>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Нет новых заявок</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% for p in participants %}
+<div class="modal fade" id="photoModal-{{ p.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Фото: {{ p.full_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img src="{{ url_for('admin.serve_upload', filename=p.photo_path.split('/')[-1] if p.photo_path else '') }}" class="img-fluid rounded" alt="Фото">
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    // no-op, modal wiring is global in base
+});
+</script>
+{% endblock %}
+
+

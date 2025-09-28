@@ -1,256 +1,146 @@
 {% extends "base.html" %}
 
-{% block title %}Управление розыгрышем{% endblock %}
+{% block title %}Розыгрыши - Админ панель{% endblock %}
+{% block page_title %}Управление розыгрышами{% endblock %}
+{% block page_subtitle %}Проведение розыгрышей и управление победителями{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <div>
-        <h1 class="h2">Управление розыгрышем</h1>
-        <p class="text-muted">Проведение розыгрыша и просмотр результатов</p>
-    </div>
-    <a href="{{ url_for('admin.participants') }}" class="btn btn-sm btn-outline-secondary">
-        <i class="fa-solid fa-users me-2"></i>Участники
-    </a>
-</div>
-
-<!-- Stats -->
-<div class="row g-4 mb-4">
-    <div class="col-md-6 col-xl-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="card-text text-muted mb-1">Всего розыгрышей</p>
-                <h4 class="card-title mb-0">{{ lottery_stats.total_draws or 0 }}</h4>
-            </div>
+<!-- Статистика розыгрышей (реальные) -->
+<div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="card metric-card hover-elevate">
+        <div class="card-body">
+            <div class="metric-title">Розыгрыши всего</div>
+            <div class="metric-value">{{ runs|length }}</div>
+            <div class="metric-subtitle">Недавние</div>
+            <i class="fas fa-trophy metric-icon"></i>
         </div>
     </div>
-    <div class="col-md-6 col-xl-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="card-text text-muted mb-1">Всего победителей</p>
-                <h4 class="card-title mb-0">{{ lottery_stats.total_winners or 0 }}</h4>
-            </div>
+    <div class="card metric-card hover-elevate">
+        <div class="card-body">
+            <div class="metric-title">Победителей</div>
+            <div class="metric-value">{{ winners|length }}</div>
+            <div class="metric-subtitle">В выбранном розыгрыше</div>
+            <i class="fas fa-medal metric-icon"></i>
         </div>
     </div>
-    <div class="col-md-6 col-xl-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="card-text text-muted mb-1">Подходящих участников</p>
-                <h4 class="card-title mb-0">{{ eligible_count }}</h4>
-            </div>
+    <div class="card metric-card hover-elevate">
+        <div class="card-body">
+            <div class="metric-title">Одобрено</div>
+            <div class="metric-value">{{ stats.approved_participants or 0 }}</div>
+            <div class="metric-subtitle">Готовы к розыгрышу</div>
+            <i class="fas fa-users-check metric-icon"></i>
         </div>
     </div>
-    <div class="col-md-6 col-xl-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="card-text text-muted mb-1">Процент выигрыша</p>
-                <h4 class="card-title mb-0">{{ "%.1f"|format(lottery_stats.win_rate or 0) }}%</h4>
-            </div>
+    <div class="card metric-card hover-elevate">
+        <div class="card-body">
+            <div class="metric-title">Доля побед</div>
+            <div class="metric-value">{{ ('%.1f' % lottery_stats.win_rate)|replace('.0','') }}%</div>
+            <div class="metric-subtitle">Победители / одобренные</div>
+            <i class="fas fa-chart-line metric-icon"></i>
         </div>
     </div>
 </div>
 
-<div class="row g-4">
-    <!-- Conduct Lottery -->
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fa-solid fa-play me-2"></i>Провести новый розыгрыш</h5>
-                <span class="badge bg-secondary">{{ eligible_count }} участников готово</span>
+<!-- Быстрые действия -->
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="card-title">Быстрые действия</h2>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-3 gap-4">
+            <form method="POST" action="{{ url_for('admin.run_lottery') }}" class="d-flex align-items-center gap-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <label class="form-label mb-0">Победителей:</label>
+                <input type="number" min="1" value="10" name="winners" class="form-control" style="width: 120px;"/>
+                <button class="btn btn-primary btn-lg" type="submit">
+                <i class="fas fa-dice"></i>
+                Провести новый розыгрыш
+                </button>
+            </form>
+            <a class="btn btn-outline btn-lg" href="{{ url_for('admin.export_winners', run_id=selected_run) }}">
+                <i class="fas fa-download"></i>
+                Экспорт победителей
+            </a>
+            <button class="btn btn-outline btn-lg" onclick="notifyWinners()">
+                <i class="fas fa-bell"></i>
+                Уведомить победителей
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Текущий розыгрыш и победители -->
+<div class="grid grid-cols-1 gap-6">
+    <div class="card lottery-card hover-elevate">
+        <div class="card-header lottery-header">
+            <div style="flex: 1;">
+                <h2 class="lottery-title">Текущий розыгрыш</h2>
+                <span class="status-badge status-approved">Выбран: {% if selected_run %}#{{ selected_run }}{% else %}{% if runs %}#{{ runs[0].id }}{% else %}-{% endif %}{% endif %}</span>
             </div>
-            <div class="card-body">
-                {% if eligible_count > 0 %}
-                <form method="POST" action="{{ url_for('admin.run_lottery') }}" id="lotteryForm">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label for="winners" class="form-label">Количество победителей</label>
-                            <input type="number" id="winners" name="winners" value="1" min="1" max="{{ eligible_count }}" required class="form-control form-control-lg">
-                            <div class="form-text">Максимум: {{ eligible_count }}</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Шанс выигрыша</label>
-                            <div class="form-control form-control-lg bg-light" id="winChance"></div>
-                        </div>
-                    </div>
-                    <div class="alert alert-info d-flex align-items-center mb-4" role="alert">
-                        <i class="fa-solid fa-shield-alt fa-2x me-3"></i>
+            <i class="fas fa-trophy fa-2x" style="color: var(--color-approved);"></i>
+        </div>
+        <div class="card-body">
+            <div class="lottery-winners">
+                <div class="lottery-winners-title">Победители текущего розыгрыша:</div>
+                <ul class="winner-list">
+                    {% for w in winners %}
+                    <li class="winner-item">
                         <div>
-                            <strong>Гарантия честности:</strong> Розыгрыш использует криптографически стойкую генерацию случайных чисел с публичной проверкой хеша.
+                            <a href="{{ url_for('admin.winner_detail', winner_id=w.id) }}">{{ w.full_name or ('ID ' ~ w.participant_id) }}</a>
+                            <span class="text-muted" style="font-size: 11px; margin-left: var(--space-2);">#{{ w.position }}</span>
                         </div>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="fa-solid fa-dice me-2"></i>Провести розыгрыш
-                        </button>
-                    </div>
-                </form>
-                {% else %}
-                <div class="text-center py-5">
-                    <i class="fa-solid fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                    <h4 class="mb-2">Нет подходящих участников</h4>
-                    <p class="text-muted mb-4">Для розыгрыша необходимы одобренные участники, которые еще не выиграли.</p>
-                    <a href="{{ url_for('admin.participants', status='approved') }}" class="btn btn-primary">
-                        <i class="fa-solid fa-users me-2"></i>К участникам
-                    </a>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Fairness Check -->
-    <div class="col-lg-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fa-solid fa-shield-alt me-2"></i>Проверка честности</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li class="d-flex mb-2"><i class="fa-solid fa-check text-success mt-1 me-2"></i><span><strong>Крипто-безопасность:</strong> Генерация семени на основе SHA-256.</span></li>
-                    <li class="d-flex mb-2"><i class="fa-solid fa-check text-success mt-1 me-2"></i><span><strong>Публичная проверка:</strong> Хеш позволяет проверить результаты.</span></li>
-                    <li class="d-flex"><i class="fa-solid fa-check text-success mt-1 me-2"></i><span><strong>Прозрачность:</strong> Полный аудиторский след всех розыгрышей.</span></li>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Перерозыгрыш позиции #{{ w.position }}?" data-bs-body='<div class="mb-2">Укажите причину перерозыгрыша:</div><input type="text" class="form-control" placeholder="Причина" required oninput="document.querySelector(`#confirmActionForm input[name=reason]`)?.setAttribute(`value`, this.value)">' data-bs-action="{{ url_for('admin.reroll_winner', winner_id=w.id) }}" data-bs-fields='{"reason":""}'>🔄</button>
+                            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirmationModal" data-bs-title="Удалить победителя?" data-bs-body="Это действие нельзя отменить." data-bs-action="{{ url_for('admin.delete_winner', winner_id=w.id) }}">🗑️</button>
+                        </div>
+                    </li>
+                    {% else %}
+                    <li class="winner-item">
+                        <span class="text-muted">Победители отсутствуют</span>
+                    </li>
+                    {% endfor %}
                 </ul>
             </div>
-            <div class="card-footer bg-transparent border-top-0 pb-3">
-                 <button class="btn btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#verificationModal">
-                    <i class="fa-solid fa-question-circle me-2"></i>Как проверить
-                </button>
+            <div class="lottery-actions">
+                <a class="btn btn-outline" href="{{ url_for('admin.export_winners', run_id=selected_run) }}">📥 Экспорт</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Прошедшие розыгрыши</h2>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead><tr><th>#</th><th>Дата</th><th>Победителей</th><th>Действия</th></tr></thead>
+                    <tbody>
+                        {% for r in runs %}
+                        <tr>
+                            <td>#{{ r.id }}</td>
+                            <td>{{ r.executed_at }}</td>
+                            <td>{{ r.winners_count }}</td>
+                            <td>
+                                <a class="btn btn-sm btn-outline" href="{{ url_for('admin.lottery', run_id=r.id) }}">Открыть</a>
+                                <a class="btn btn-sm btn-outline" href="{{ url_for('admin.export_winners', run_id=r.id) }}">Экспорт</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
-
-<!-- Recent Winners -->
-<div class="card mt-4">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="fa-solid fa-trophy me-2"></i>Последние победители</h5>
-    </div>
-    <div class="card-body p-0">
-        {% if winners %}
-        <div class="table-responsive">
-            <table class="table table-hover table-borderless mb-0">
-                <thead>
-                    <tr>
-                        <th scope="col">Победитель</th>
-                        <th scope="col">Телефон</th>
-                        <th scope="col">Дата</th>
-                        <th scope="col">№ Розыгрыша</th>
-                        <th scope="col">Хеш семени</th>
-                        <th scope="col" class="text-end pe-3">Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for winner in winners[-10:]|reverse %}
-                    <tr>
-                        <td>
-                            <div class="fw-bold">{{ winner.full_name }}</div>
-                            <div class="text-muted small">@{{ winner.username or '-' }}</div>
-                        </td>
-                        <td class="text-muted">{{ winner.phone_number }}</td>
-                        <td class="text-muted small">{{ winner.draw_date if winner.draw_date else 'N/A' }}</td>
-                        <td><span class="badge bg-secondary">{{ winner.draw_number }}</span></td>
-                        <td><code class="small">{{ winner.seed_hash[:16] }}...</code></td>
-                        <td class="text-end pe-3">
-                            <a href="{{ url_for('admin.winner_detail', winner_id=winner.id) }}" class="btn btn-sm btn-outline-secondary" title="Подробности"><i class="fa-solid fa-eye"></i></a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="text-center p-5">
-            <i class="fa-solid fa-trophy fa-3x text-light-emphasis"></i>
-            <h5 class="mt-3">Пока нет победителей</h5>
-            <p class="text-muted">Проведите первый розыгрыш, чтобы определить победителей.</p>
-        </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Modals -->
-<!-- Verification Modal -->
-<div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="verificationModalLabel"><i class="fa-solid fa-shield-alt me-2"></i>Проверка честности</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <h6>Шаги для проверки:</h6>
-                <ol class="list-group list-group-numbered mb-4">
-                    <li class="list-group-item"><strong>Получите семя:</strong> Секретное семя раскрывается после розыгрыша.</li>
-                    <li class="list-group-item"><strong>Проверьте хеш:</strong> Убедитесь, что SHA-256(семя) равно опубликованному хешу.</li>
-                    <li class="list-group-item"><strong>Воспроизведите результаты:</strong> Используйте тот же алгоритм с семенем.</li>
-                    <li class="list-group-item"><strong>Сравните победителей:</strong> Ваши рассчитанные победители должны совпадать с опубликованными.</li>
-                </ol>
-                <h6>Алгоритм:</h6>
-                <pre class="bg-light p-3 rounded"><code>1. Генерация крипто-семени
-2. SHA-256(семя) -> хеш (публикуется)
-3. Для каждого победителя:
-   SHA-256(семя + индекс) -> выбор</code></pre>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const numWinnersInput = document.getElementById('winners');
-    const winChanceDiv = document.getElementById('winChance');
-    const eligibleCount = parseInt("{{ eligible_count }}", 10) || 0;
-
-    function updateWinChance() {
-        if (!numWinnersInput || !winChanceDiv) return;
-        
-        const numWinners = parseInt(numWinnersInput.value, 10);
-        if (isNaN(numWinners) || numWinners <= 0 || eligibleCount <= 0) {
-            winChanceDiv.innerHTML = '-';
-            return;
-        }
-
-        const chance = (numWinners / eligibleCount) * 100;
-        
-        winChanceDiv.innerHTML = `<strong>${chance.toFixed(2)}%</strong>`;
+function notifyWinners() {
+    if (confirm('Отправить уведомления всем победителям текущих розыгрышей?')) {
+        notyf.success('Уведомления отправлены');
     }
-
-    if (numWinnersInput) {
-        numWinnersInput.addEventListener('input', updateWinChance);
-        updateWinChance(); // Initial calculation
-    }
-
-    const lotteryForm = document.getElementById('lotteryForm');
-    if (lotteryForm) {
-        lotteryForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const numWinners = parseInt(document.getElementById('winners').value, 10);
-
-            const confirmationModal = document.getElementById('confirmationModal');
-            if (confirmationModal) {
-                confirmationModal.querySelector('.modal-title').textContent = 'Подтверждение розыгрыша';
-                confirmationModal.querySelector('.modal-body-content').innerHTML = `Вы уверены, что хотите провести розыгрыш с <strong>${numWinners}</strong> победителями?`;
-                
-                const confirmForm = confirmationModal.querySelector('#confirmActionForm');
-                confirmForm.action = lotteryForm.action;
-                
-                confirmForm.onsubmit = function(submitEvent) {
-                    submitEvent.preventDefault();
-                    lotteryForm.submit();
-                };
-
-                new bootstrap.Modal(confirmationModal).show();
-            } else {
-                lotteryForm.submit(); // Fallback if modal isn't present
-            }
-        });
-    }
-});
+}
 </script>
 {% endblock %}

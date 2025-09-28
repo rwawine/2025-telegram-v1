@@ -1,146 +1,231 @@
 <!DOCTYPE html>
-<html lang="ru" class="h-100">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Админ-панель{% endblock %}</title>
+    <title>{% block title %}Админ-панель розыгрышей{% endblock %}</title>
+    
+    <!-- Preload fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Main styles -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    
     {% block styles %}{% endblock %}
 </head>
-<body class="d-flex flex-column h-100">
-    <div class="d-flex flex-grow-1">
-        <!-- Sidebar -->
-        <nav class="sidebar d-none d-md-block bg-dark">
-            <div class="sidebar-sticky pt-3">
-                <div class="px-3 mb-3 text-center">
-                    <h5 class="text-white"><i class="fa-solid fa-trophy me-2"></i>Lottery Admin</h5>
+<body>
+    <div class="admin-layout">
+        <!-- Сайдбар -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Header сайдбара -->
+            <div class="sidebar-header">
+                <h1 class="sidebar-title">📊 Администрирование</h1>
+                <p class="sidebar-subtitle">Панель управления розыгрышами</p>
+            </div>
+            
+            <!-- Навигация -->
+            <nav class="nav-menu">
+                <div class="nav-group">
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin.dashboard') }}" 
+                           class="nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+                            <i class="fas fa-chart-line"></i>
+                            Главная
+                        </a>
+                    </div>
+                    
+                    <div class="nav-item">
+                        <a href="#" class="nav-link expandable" id="participants-menu">
+                            <i class="fas fa-users"></i>
+                            Участники
+                            <i class="fas fa-chevron-down"></i>
+                            <span class="badge badge-notification">{{ global_stats.pending_participants if global_stats and global_stats.pending_participants is not none else 0 }}</span>
+                        </a>
+                        <div class="nav-submenu" id="participants-submenu">
+                            <a href="{{ url_for('admin.participants', status='pending') }}" 
+                               class="nav-link {% if request.endpoint == 'admin.participants' and request.args.get('status') == 'pending' %}active{% endif %}">
+                                👤➕ Новые заявки
+                                <span class="badge badge-notification">{{ global_stats.pending_participants if global_stats and global_stats.pending_participants is not none else 0 }}</span>
+                            </a>
+                            <a href="{{ url_for('admin.participants') }}" 
+                               class="nav-link {% if request.endpoint == 'admin.participants' and not request.args.get('status') %}active{% endif %}">
+                                👥 Все участники
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="nav-item">
+                        <a href="#" class="nav-link expandable" id="lottery-menu">
+                            <i class="fas fa-dice"></i>
+                            Розыгрыши
+                            <i class="fas fa-chevron-down"></i>
+                        </a>
+                        <div class="nav-submenu" id="lottery-submenu">
+                            <a href="{{ url_for('admin.lottery') }}" 
+                               class="nav-link {% if request.endpoint == 'admin.lottery' %}active{% endif %}">
+                                🎲 Провести
+                            </a>
+                            <a href="{{ url_for('admin.lottery') }}" 
+                               class="nav-link">
+                                📜 История
+                            </a>
+                            <a href="{{ url_for('admin.winners') }}" 
+                               class="nav-link">
+                                🏆 Победители
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin.broadcasts') }}" 
+                           class="nav-link {% if request.endpoint == 'admin.broadcasts' %}active{% endif %}">
+                            <i class="fas fa-bullhorn"></i>
+                            📢 Рассылки
+                        </a>
                 </div>
-                <ul class="nav flex-column">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}" href="{{ url_for('admin.dashboard') }}">
-                            <i class="fa-solid fa-chart-pie fa-fw"></i> Дашборд
+                    
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin.support_tickets') }}" 
+                           class="nav-link {% if 'support' in (request.endpoint or '') %}active{% endif %}">
+                            <i class="fas fa-headset"></i>
+                            💬 Поддержка
+                            <span class="badge badge-notification">{{ global_stats.open_tickets if global_stats and global_stats.open_tickets is not none else 0 }}</span>
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint and 'participants' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin.participants') }}">
-                            <i class="fa-solid fa-users fa-fw"></i> Участники
+                    </div>
+                    
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin.analytics') }}" 
+                           class="nav-link {% if request.endpoint == 'admin.analytics' %}active{% endif %}">
+                            <i class="fas fa-chart-bar"></i>
+                            📈 Аналитика
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin.lottery' %}active{% endif %}" href="{{ url_for('admin.lottery') }}">
-                            <i class="fa-solid fa-ticket fa-fw"></i> Розыгрыш
+                    </div>
+                    
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin.moderation') }}" 
+                           class="nav-link {% if request.endpoint == 'admin.moderation' %}active{% endif %}">
+                            <i class="fas fa-shield-alt"></i>
+                            🛡️ Модерация
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'admin.broadcasts' %}active{% endif %}" href="{{ url_for('admin.broadcasts') }}">
-                            <i class="fa-solid fa-tower-broadcast fa-fw"></i> Рассылки
+                    </div>
+                    
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin.settings') }}" 
+                           class="nav-link {% if request.endpoint == 'admin.settings' %}active{% endif %}">
+                            <i class="fas fa-cog"></i>
+                            ⚙️ Настройки
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint and 'support' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin.support_tickets') }}">
-                            <i class="fa-solid fa-headset fa-fw"></i> Поддержка
+                    </div>
+                    
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin.system_page') }}" 
+                           class="nav-link {% if request.endpoint == 'admin.system_page' or request.endpoint == 'admin.view_log' %}active{% endif %}">
+                            <i class="fas fa-server"></i>
+                            🖥️ Система
                         </a>
-                    </li>
-                </ul>
-                <div class="px-3 mt-auto pt-3 pb-3 border-top border-secondary">
-                    <div class="d-flex align-items-center">
-                        <i class="fa-solid fa-user-circle text-white fs-4"></i>
-                        <div class="ms-3">
-                            <p class="text-white mb-0 small">{{ current_user.username }}</p>
-                            <a href="{{ url_for('admin.logout') }}" class="text-muted small">Выйти</a>
+                    </div>
+                        </div>
+            </nav>
+        </aside>
+
+        <!-- Основной контент -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="sidebar-toggle" id="sidebar-toggle">
+                        <i class="fas fa-bars"></i>
+                        <span class="sr-only">Toggle Sidebar</span>
+                    </button>
+                    
+                    <div>
+                        <h1 class="page-title">{% block page_title %}Панель администрирования розыгрышей{% endblock %}</h1>
+                        <p class="page-subtitle">{% block page_subtitle %}{% endblock %}</p>
+                    </div>
+                </div>
+                
+                <div class="header-actions">
+                    <!-- Поиск -->
+                    <div class="search-box position-relative">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" class="search-input" placeholder="Поиск по системе..." id="global-search" autocomplete="off">
+                        <div id="search-dropdown" class="dropdown-menu show" style="display:none; position:absolute; top: 100%; left: 0; right: 0; max-height: 320px; overflow:auto;"></div>
+            </div>
+                    
+                    <!-- Уведомления -->
+                    <div class="notifications dropdown">
+                        <button class="notification-bell" id="notifications-btn" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-count">{{ global_stats.open_tickets if global_stats and global_stats.open_tickets is not none else 0 }}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" style="min-width: 280px;">
+                            <li class="dropdown-header">Уведомления</li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.support_tickets') }}">Открытых тикетов: {{ global_stats.open_tickets if global_stats and global_stats.open_tickets is not none else 0 }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.participants', status='pending') }}">Новые заявки: {{ global_stats.pending_participants if global_stats and global_stats.pending_participants is not none else 0 }}</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin.lottery') }}">Розыгрыш</a></li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Переключатель темы -->
+                    <button class="theme-toggle" id="theme-toggle" title="Тема">
+                        <i class="fas fa-moon" id="theme-icon"></i>
+                    </button>
+                    
+                    <!-- Профиль пользователя -->
+                    <div class="user-profile" id="user-profile">
+                        <div class="user-avatar">ИП</div>
+                        <div>
+                            <p class="user-name">{{ current_user.username if current_user.is_authenticated else 'Иван Петров' }}</p>
+                            <p class="user-role">Администратор</p>
                         </div>
                     </div>
                 </div>
-            </div>
-        </nav>
-
-        <!-- Main content -->
-        <main class="content flex-grow-1 p-4">
-            <div class="container-fluid">
-                <!-- Mobile header -->
-                <div class="d-md-none mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fa-solid fa-trophy me-2"></i>Lottery Admin</h5>
-                        <button class="btn btn-light" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobile-sidebar" aria-controls="mobile-sidebar">
-                            <i class="fa-solid fa-bars"></i>
-                        </button>
-                    </div>
-                </div>
+            </header>
+            
+            <!-- Контент страницы -->
+            <div class="content">
                 {% block content %}{% endblock %}
             </div>
         </main>
     </div>
 
-    <!-- Mobile Sidebar -->
-    <div class="offcanvas offcanvas-start bg-dark text-white" tabindex="-1" id="mobile-sidebar" aria-labelledby="mobile-sidebar-label">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title" id="mobile-sidebar-label"><i class="fa-solid fa-trophy me-2"></i>Админ-панель</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-        </div>
-        <div class="offcanvas-body">
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}" href="{{ url_for('admin.dashboard') }}">
-                        <i class="fa-solid fa-chart-pie fa-fw"></i> Дашборд
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint and 'participants' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin.participants') }}">
-                        <i class="fa-solid fa-users fa-fw"></i> Участники
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'admin.lottery' %}active{% endif %}" href="{{ url_for('admin.lottery') }}">
-                        <i class="fa-solid fa-ticket fa-fw"></i> Розыгрыш
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint == 'admin.broadcasts' %}active{% endif %}" href="{{ url_for('admin.broadcasts') }}">
-                        <i class="fa-solid fa-tower-broadcast fa-fw"></i> Рассылки
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.endpoint and 'support' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin.support_tickets') }}">
-                        <i class="fa-solid fa-headset fa-fw"></i> Поддержка
-                    </a>
-                </li>
-            </ul>
-            <div class="mt-auto pt-3 pb-3 border-top border-secondary">
-                <div class="d-flex align-items-center">
-                    <i class="fa-solid fa-user-circle text-white fs-4"></i>
-                    <div class="ms-3">
-                        <p class="text-white mb-0 small">{{ current_user.username }}</p>
-                        <a href="{{ url_for('admin.logout') }}" class="text-muted small">Выйти</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirmation Modal -->
-    <div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+    <!-- Mobile overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    
+    <!-- Flash messages container -->
+    <div id="flash-messages" style="position: fixed; top: 80px; right: 20px; z-index: 9999;"></div>
+    
+    <!-- Confirmation Modal (global) -->
+    <div class="modal fade" id="confirmationModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="confirmationModalLabel">Подтверждение действия</h5>
+                    <h5 class="modal-title">Подтверждение</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="modal-body-content">Вы уверены, что хотите выполнить это действие?</div>
+                    <div class="modal-body-content">Вы уверены, что хотите выполнить действие?</div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <form id="confirmActionForm" method="post" class="d-inline">
+                    <form id="confirmActionForm" method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" class="btn btn-danger">Подтвердить</button>
+                        <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-primary">Подтвердить</button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
+    
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+    <script>window.CSRF_TOKEN = "{{ csrf_token() }}";</script>
 
     <!-- Flash messages data -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -158,37 +243,16 @@
     {% endif %}
     {% endwith %}
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
     <script>
+    // Initialize notifications
         const notyf = new Notyf({
             duration: 5000,
-            position: {
-                x: 'right',
-                y: 'top',
-            },
+        position: { x: 'right', y: 'top' },
             types: [
-                {
-                    type: 'info',
-                    background: '#0d6efd',
-                    icon: false
-                },
-                {
-                    type: 'warning',
-                    background: '#ffc107',
-                    icon: false
-                },
-                {
-                    type: 'success',
-                    background: '#198754',
-                    icon: false
-                },
-                {
-                    type: 'error',
-                    background: '#dc3545',
-                    icon: false
-                }
+            { type: 'info', background: 'hsl(63, 69%, 45%)', icon: false },
+            { type: 'success', background: 'hsl(142, 69%, 45%)', icon: false },
+            { type: 'warning', background: 'hsl(45, 95%, 55%)', icon: false },
+            { type: 'error', background: 'hsl(0, 84%, 60%)', icon: false }
             ]
         });
 
@@ -203,25 +267,191 @@
             }
         });
 
-        document.addEventListener('DOMContentLoaded', function () {
-            var confirmationModal = document.getElementById('confirmationModal');
-            if (confirmationModal) {
-                confirmationModal.addEventListener('show.bs.modal', function (event) {
-                    var button = event.relatedTarget;
-                    var title = button.getAttribute('data-bs-title');
-                    var body = button.getAttribute('data-bs-body');
-                    var action = button.getAttribute('data-bs-action');
+    // Sidebar functionality
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
 
-                    var modalTitle = confirmationModal.querySelector('.modal-title');
-                    var modalBodyContent = confirmationModal.querySelector('.modal-body-content');
-                    var confirmForm = confirmationModal.querySelector('#confirmActionForm');
+    sidebarToggle?.addEventListener('click', function() {
+        sidebar?.classList.toggle('mobile-open');
+        sidebarOverlay?.classList.toggle('active');
+    });
 
-                    if (title) modalTitle.textContent = title;
-                    if (body && modalBodyContent) modalBodyContent.innerHTML = body;
-                    if (action && confirmForm) confirmForm.action = action;
+    sidebarOverlay?.addEventListener('click', function() {
+        sidebar?.classList.remove('mobile-open');
+        sidebarOverlay?.classList.remove('active');
+    });
+
+    // Expandable menu functionality
+    document.querySelectorAll('.nav-link.expandable').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const submenuId = this.id.replace('-menu', '-submenu');
+            const submenu = document.getElementById(submenuId);
+            
+            if (submenu) {
+                const isExpanded = submenu.classList.contains('expanded');
+                
+                // Close all other submenus
+                document.querySelectorAll('.nav-submenu').forEach(function(menu) {
+                    menu.classList.remove('expanded');
                 });
+                document.querySelectorAll('.nav-link.expandable').forEach(function(menuLink) {
+                    menuLink.classList.remove('expanded');
+                });
+                
+                // Toggle current submenu
+                if (!isExpanded) {
+                    submenu.classList.add('expanded');
+                    this.classList.add('expanded');
+                }
             }
         });
+    });
+
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    
+    // Apply saved theme
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    if (savedTheme === 'dark') {
+        themeIcon?.classList.replace('fa-moon', 'fa-sun');
+    }
+
+    themeToggle?.addEventListener('click', function() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        
+        if (newTheme === 'dark') {
+            themeIcon?.classList.replace('fa-moon', 'fa-sun');
+        } else {
+            themeIcon?.classList.replace('fa-sun', 'fa-moon');
+        }
+    });
+
+    // Global search
+    const globalSearch = document.getElementById('global-search');
+    const searchDropdown = document.getElementById('search-dropdown');
+    function highlight(text, q) {
+        const i = text.toLowerCase().indexOf(q.toLowerCase());
+        if (i === -1) return text;
+        return text.substring(0,i) + '<mark>' + text.substring(i, i+q.length) + '</mark>' + text.substring(i+q.length);
+    }
+    let searchTimer;
+    globalSearch?.addEventListener('input', async function(e){
+        clearTimeout(searchTimer);
+        const q = e.target.value.trim();
+        if (q.length < 2) { searchDropdown.style.display='none'; return; }
+        searchTimer = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                const groups = data.results || {};
+                let html = '';
+                const renderGroup = (title, items) => {
+                    if (!items || !items.length) return '';
+                    let s = `<div class="dropdown-header">${title}</div>`;
+                    items.forEach(item => {
+                        const titleH = highlight(item.title || '', q);
+                        const subH = item.subtitle ? ' <small class="text-muted">' + highlight(item.subtitle, q) + '</small>' : '';
+                        s += `<a class="dropdown-item" href="${item.url}">${titleH}${subH}</a>`;
+                    });
+                    s += '<div class="dropdown-divider"></div>';
+                    return s;
+                };
+                html += renderGroup('Участники', groups.participants);
+                html += renderGroup('Тикеты', groups.tickets);
+                html += renderGroup('Победители', groups.winners);
+                if (!html) html = '<div class="dropdown-item text-muted">Ничего не найдено</div>';
+                searchDropdown.innerHTML = html;
+                searchDropdown.style.display = 'block';
+            } catch(e) {
+                searchDropdown.innerHTML = '<div class="dropdown-item text-danger">Ошибка поиска</div>';
+                searchDropdown.style.display = 'block';
+            }
+        }, 250);
+    });
+    globalSearch?.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const query = e.target.value.trim();
+            if (!query) return;
+            const q = query.toLowerCase();
+            if (q.includes('побед')) {
+                window.location.href = "{{ url_for('admin.winners') }}";
+            } else if (q.includes('тикет') || q.includes('поддерж')) {
+                window.location.href = "{{ url_for('admin.support_tickets') }}";
+            } else if (q.includes('участ')) {
+                window.location.href = "{{ url_for('admin.participants') }}";
+            } else if (q.includes('розы') || q.includes('lottery')) {
+                window.location.href = "{{ url_for('admin.lottery') }}";
+            } else if (q.includes('рассыл')) {
+                window.location.href = "{{ url_for('admin.broadcasts') }}";
+            } else {
+                window.location.href = "{{ url_for('admin.dashboard') }}";
+            }
+        }
+    });
+
+    // Auto-expand active menu
+    document.addEventListener('DOMContentLoaded', function() {
+        const activeSubmenuLink = document.querySelector('.nav-submenu .nav-link.active');
+        if (activeSubmenuLink) {
+            const submenu = activeSubmenuLink.closest('.nav-submenu');
+            const menuLink = submenu?.previousElementSibling;
+            if (submenu && menuLink) {
+                submenu.classList.add('expanded');
+                menuLink.classList.add('expanded');
+            }
+        }
+    });
+    
+    // Confirmation modal wiring
+    const confirmationModal = document.getElementById('confirmationModal');
+    if (confirmationModal) {
+        confirmationModal.addEventListener('show.bs.modal', function (event) {
+            const trigger = event.relatedTarget;
+            if (!trigger) return;
+            const title = trigger.getAttribute('data-bs-title') || 'Подтверждение';
+            const body = trigger.getAttribute('data-bs-body') || 'Вы уверены, что хотите выполнить действие?';
+            const action = trigger.getAttribute('data-bs-action') || '#';
+            const method = (trigger.getAttribute('data-bs-method') || 'POST').toUpperCase();
+            
+            const titleEl = confirmationModal.querySelector('.modal-title');
+            const bodyEl = confirmationModal.querySelector('.modal-body-content');
+            const formEl = confirmationModal.querySelector('#confirmActionForm');
+            if (titleEl) titleEl.textContent = title;
+            if (bodyEl) bodyEl.innerHTML = body;
+            if (formEl) {
+                formEl.action = action;
+                formEl.method = method === 'GET' ? 'GET' : 'POST';
+                // Remove previously added dynamic fields
+                Array.from(formEl.querySelectorAll('[data-dynamic-field="1"]')).forEach(el => el.remove());
+                // Add dynamic hidden fields if provided
+                const fieldsJson = trigger.getAttribute('data-bs-fields');
+                if (fieldsJson) {
+                    try {
+                        const fields = JSON.parse(fieldsJson);
+                        Object.entries(fields).forEach(([key, value]) => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = key;
+                            input.value = value;
+                            input.setAttribute('data-dynamic-field', '1');
+                            formEl.appendChild(input);
+                        });
+                    } catch (e) {
+                        console.warn('Invalid data-bs-fields JSON', e);
+                    }
+                }
+            }
+        });
+    }
     </script>
 
     {% block scripts %}{% endblock %}

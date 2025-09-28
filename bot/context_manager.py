@@ -218,5 +218,11 @@ class ContextManager:
         }
 
 
-# Глобальный экземпляр менеджера
-context_manager = ContextManager()
+# Глобальный экземпляр менеджера - инициализируется позже
+context_manager = None
+
+def init_context_manager():
+    """Инициализация менеджера контекста после инициализации кеша"""
+    global context_manager
+    context_manager = ContextManager()
+    return context_manager

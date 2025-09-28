@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Аналитика{% endblock %}
+{% block page_title %}Аналитика{% endblock %}
+{% block page_subtitle %}Графики по участникам, тикетам и рассылкам{% endblock %}
+
+{% block content %}
+<div class="card mb-6">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="card-title mb-0">Фильтры</h2>
+        <a href="{{ url_for('admin.analytics') }}" class="btn btn-outline">Сбросить</a>
+    </div>
+    <div class="card-body">
+        <form method="GET" class="grid grid-cols-4 gap-4">
+            <div class="form-group">
+                <label class="form-label">Период</label>
+                <select name="period" class="form-control">
+                    <option value="7d">7 дней</option>
+                    <option value="30d" selected>30 дней</option>
+                    <option value="90d">90 дней</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Секция</label>
+                <select name="section" class="form-control">
+                    <option value="participants" selected>Участники</option>
+                    <option value="tickets">Поддержка</option>
+                    <option value="broadcasts">Рассылки</option>
+                    <option value="lottery">Розыгрыши</option>
+                </select>
+            </div>
+            <div class="form-group d-flex align-items-end">
+                <button type="submit" class="btn btn-primary">Применить</button>
+            </div>
+        </form>
+    </div>
+ </div>
+
+<div class="grid grid-cols-2 gap-6">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Динамика участников</h2>
+        </div>
+        <div class="card-body">
+            <canvas id="participantsChart" height="110"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Статусы тикетов</h2>
+        </div>
+        <div class="card-body">
+            <canvas id="ticketsChart" height="110"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Результаты рассылок</h2>
+        </div>
+        <div class="card-body">
+            <canvas id="broadcastsChart" height="110"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Аудитории: успех/ошибка</h2>
+        </div>
+        <div class="card-body">
+            <canvas id="broadcastsAudienceChart" height="110"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Розыгрыши</h2>
+        </div>
+        <div class="card-body">
+            <canvas id="lotteryChart" height="110"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="application/json" id="analytics-data">
+{
+    "stats": {{ (stats or {}) | tojson }},
+    "audience": {{ (broadcast_audience_breakdown or {}) | tojson }}
+}
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    var analyticsEl = document.getElementById('analytics-data');
+    var parsed = { stats: {}, audience: {} };
+    try { parsed = JSON.parse(analyticsEl.textContent); } catch (e) {}
+    var stats = parsed.stats || {};
+    var audience = parsed.audience || {};
+    const ctx1 = document.getElementById('participantsChart');
+    const ctx2 = document.getElementById('ticketsChart');
+    const ctx3 = document.getElementById('broadcastsChart');
+    const ctx4 = document.getElementById('lotteryChart');
+
+    // Simple demo charts fed by stats
+    new Chart(ctx1, { type: 'bar', data: { labels: ['Всего','Одобрено','На рассмотр.','Отклонено'], datasets: [{ label: 'Участники', data: [stats.total_participants||0, stats.approved_participants||0, stats.pending_participants||0, stats.rejected_participants||0], backgroundColor: ['#0d6efd','#198754','#ffc107','#dc3545'] }] }, options: { responsive: true } });
+    new Chart(ctx2, { type: 'doughnut', data: { labels: ['Открыты','В работе','Закрыты'], datasets: [{ data: [stats.open_tickets||0, stats.tickets_in_progress||0, stats.tickets_closed||0], backgroundColor: ['#ffc107','#0dcaf0','#6c757d'] }] }, options: { responsive: true } });
+    new Chart(ctx3, { type: 'bar', data: { labels: ['Неудачные'], datasets: [{ label: 'Рассылки', data: [stats.failed_broadcasts||0], backgroundColor: ['#dc3545'] }] }, options: { responsive: true } });
+    // Audience success/failed stacked
+    var labels = Object.keys(audience);
+    var succ = labels.map(function(k){ var v = audience[k] || {}; return (v.success || 0); });
+    var fail = labels.map(function(k){ var v = audience[k] || {}; return (v.failed || 0); });
+    new Chart(document.getElementById('broadcastsAudienceChart'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Успех', data: succ, backgroundColor: '#198754' },
+                { label: 'Ошибка', data: fail, backgroundColor: '#dc3545' },
+            ]
+        },
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } } }
+    });
+    new Chart(ctx4, { type: 'bar', data: { labels: ['Победители'], datasets: [{ label: 'Всего', data: [stats.total_winners||0], backgroundColor: ['#6610f2'] }] }, options: { responsive: true } });
+});
+</script>
+{% endblock %}
+
+

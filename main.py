@@ -12,12 +12,7 @@ from aiohttp_wsgi import WSGIHandler
 from prometheus_client import start_http_server
 
 from bot import OptimizedBot
-from bot.handlers import (
-    setup_common_handlers,
-    setup_registration_handlers,
-    setup_support_handlers,
-    setup_fallback_handlers,
-)
+# Импорт handlers перенесен в init_bot после инициализации кеша
 from config import load_config
 from database import init_db_pool, run_migrations
 from services import BroadcastService, SecureLottery, set_main_loop
@@ -32,6 +27,18 @@ logger = logging.getLogger(__name__)
 
 
 async def init_bot(config, cache):
+    # Импортируем handlers здесь, после инициализации кеша
+    from bot.handlers import (
+        setup_common_handlers,
+        setup_registration_handlers,
+        setup_support_handlers,
+        setup_fallback_handlers,
+    )
+    from bot.context_manager import init_context_manager
+    
+    # Инициализируем context manager
+    init_context_manager()
+    
     bot = OptimizedBot(
         token=config.bot_token,
         rate_limit=config.bot_rate_limit,

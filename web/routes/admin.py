@@ -4,9 +4,11 @@ from __future__ import annotations
 """Admin blueprints with basic views."""
 
 import os
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for, send_from_directory
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for, send_from_directory, jsonify
 from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.utils import secure_filename
+from io import StringIO
+import csv
 
 from database.admin_queries import AdminDatabase
 from services import run_coroutine_sync, submit_coroutine
@@ -31,6 +33,7 @@ def dashboard():
     stats = {
         "total_participants": raw.get("total_participants", 0),
         "total_winners": raw.get("total_winners", 0),
+        "open_tickets": raw.get("open_tickets", 0),
         "by_status": {
             "approved": raw.get("approved_participants", 0),
             "pending": raw.get("pending_participants", 0),
@@ -38,7 +41,19 @@ def dashboard():
         },
     }
     recent_participants, _ = db.list_participants(page=1, per_page=10)
-    return render_template("dashboard.html", stats=stats, recent_participants=recent_participants)
+    # Load a few recent open tickets for dashboard support block
+    recent_tickets, _ = db.list_support_tickets(page=1, per_page=3)
+    moderation = db.get_moderation_activity()
+    top_reasons = db.get_top_rejection_reasons(limit=5)
+
+    return render_template(
+        "dashboard.html",
+        stats=stats,
+        recent_participants=recent_participants,
+        recent_tickets=recent_tickets,
+        moderation=moderation,
+        top_reasons=top_reasons,
+    )
 
 
 @admin_bp.route("/login", methods=["GET", "POST"])
@@ -76,6 +91,15 @@ def participants():
     db = _get_admin_db()
     participants, total = db.list_participants(status=status, search=search, page=page, per_page=per_page)
     pages = (total + per_page - 1) // per_page
+    raw_stats = db.get_statistics()
+    stats = {
+        "total_participants": raw_stats.get("total_participants", 0),
+        "by_status": {
+            "approved": raw_stats.get("approved_participants", 0),
+            "pending": raw_stats.get("pending_participants", 0),
+            "rejected": raw_stats.get("rejected_participants", 0),
+        },
+    }
     return render_template(
         "participants.html",
         participants=participants,
@@ -85,7 +109,59 @@ def participants():
         per_page=per_page,
         current_status=status,
         search_query=search,
+        stats=stats,
     )
+
+
+@admin_bp.route("/participants/import", methods=["POST"])
+@login_required
+def import_participants():
+    if 'file' not in request.files or not request.files['file'].filename:
+        flash("Загрузите CSV файл", "error")
+        return redirect(url_for('admin.participants'))
+    file = request.files['file']
+    try:
+        stream = StringIO(file.stream.read().decode('utf-8-sig'))
+        reader = csv.DictReader(stream)
+        from services.async_runner import run_sync
+        from database.repositories import insert_participants_batch
+        batch = []
+        for row in reader:
+            try:
+                batch.append({
+                    "telegram_id": int(row.get("telegram_id") or 0),
+                    "username": row.get("username") or None,
+                    "full_name": row.get("full_name") or "",
+                    "phone_number": row.get("phone_number") or "",
+                    "loyalty_card": row.get("loyalty_card") or "",
+                    "photo_path": row.get("photo_path") or None,
+                })
+            except Exception:
+                continue
+        if batch:
+            run_sync(insert_participants_batch(batch))
+            flash(f"Импортировано записей: {len(batch)}", "success")
+        else:
+            flash("В файле не найдено валидных записей", "warning")
+    except Exception as e:
+        current_app.logger.exception("Ошибка импорта участников")
+        flash(f"Не удалось импортировать: {e}", "error")
+    return redirect(url_for('admin.participants'))
+
+
+@admin_bp.route("/participants/<int:participant_id>/delete", methods=["POST"])
+@login_required
+def delete_participant(participant_id: int):
+    db = _get_admin_db()
+    try:
+        with db._connect() as conn:
+            conn.execute("DELETE FROM participants WHERE id=?", (participant_id,))
+            conn.commit()
+        flash("Участник удален", "success")
+    except Exception as e:
+        current_app.logger.exception("Ошибка удаления участника")
+        flash(f"Не удалось удалить участника: {e}", "error")
+    return redirect(url_for("admin.participants"))
 
 
 @admin_bp.route("/participants/mass_update", methods=["POST"])
@@ -179,6 +255,24 @@ def lottery():
     )
 
 
+@admin_bp.route("/lottery/history")
+@login_required
+def lottery_history():
+    db = _get_admin_db()
+    runs = db.list_lottery_runs(limit=200)
+    return render_template("lottery_history.html", runs=runs, stats=db.get_statistics())
+
+
+@admin_bp.route("/winners")
+@login_required
+def winners():
+    db = _get_admin_db()
+    run_id = request.args.get("run_id", type=int)
+    winners = db.list_winners(run_id=run_id, limit=1000)
+    runs = db.list_lottery_runs(limit=50)
+    return render_template("winners.html", winners=winners, runs=runs, selected_run=run_id, stats=db.get_statistics())
+
+
 @admin_bp.route("/lottery/run", methods=["POST"])
 @login_required
 def run_lottery():
@@ -205,6 +299,17 @@ def broadcasts():
     status = request.args.get("status")
     db = _get_admin_db()
     queue, total = db.list_broadcasts(status=status, page=page, per_page=per_page)
+    # Derive analytics breakdowns
+    by_status = {
+        'completed': len([b for b in queue if b['status'] == 'completed']),
+        'sending': len([b for b in queue if b['status'] == 'sending']),
+        'draft': len([b for b in queue if b['status'] == 'draft']),
+        'failed': len([b for b in queue if b['status'] == 'failed']),
+    }
+    by_audience = {}
+    for b in queue:
+        aud = b.get('media_type') or 'all'
+        by_audience[aud] = by_audience.get(aud, 0) + 1
     pages = (total + per_page - 1) // per_page
     return render_template(
         "broadcasts.html",
@@ -214,7 +319,50 @@ def broadcasts():
         pages=pages,
         per_page=per_page,
         status=status,
+        stats=db.get_statistics(),
+        by_status=by_status,
+        by_audience=by_audience,
     )
+
+
+@admin_bp.route("/participants/export")
+@login_required
+def export_participants():
+    db = _get_admin_db()
+    status = request.args.get("status")
+    participants, _ = db.list_participants(status=status, page=1, per_page=1_000_000)
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["id", "full_name", "phone_number", "username", "telegram_id", "loyalty_card", "status", "registration_date"])
+    for p in participants:
+        writer.writerow([p.id, p.full_name, p.phone_number, p.username or "", p.telegram_id, p.loyalty_card, p.status, p.registration_date])
+    output = si.getvalue().encode("utf-8-sig")
+    from flask import make_response
+    response = make_response(output)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = "attachment; filename=participants.csv"
+    return response
+
+
+@admin_bp.route("/winners/export")
+@login_required
+def export_winners():
+    db = _get_admin_db()
+    run_id = request.args.get("run_id", type=int)
+    winners = db.list_winners(run_id=run_id, limit=100000)
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["winner_id", "run_id", "participant_id", "full_name", "username", "phone_number", "position", "draw_number", "draw_date", "seed_hash"])
+    for w in winners:
+        writer.writerow([
+            w["id"], w["run_id"], w["participant_id"], w["full_name"], w["username"], w["phone_number"], w["position"], w.get("draw_number"), w.get("draw_date"), w.get("seed_hash")
+        ])
+    output = si.getvalue().encode("utf-8-sig")
+    from flask import make_response
+    response = make_response(output)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = "attachment; filename=winners.csv"
+    return response
 
 
 @admin_bp.route("/support_tickets")
@@ -235,53 +383,67 @@ def support_tickets():
         per_page=per_page,
         status=status,
         current_status=status,
+        stats=db.get_statistics(),
     )
 
 
 @admin_bp.route("/support_tickets/<int:ticket_id>/status", methods=["POST"])
 @login_required
 def update_ticket_status(ticket_id: int):
+    wants_json = request.accept_mimetypes.best == "application/json" or request.headers.get("X-Requested-With") == "XMLHttpRequest"
     status = request.form.get("status")
     response_message = request.form.get("response_message")
-    
     if not status:
-        flash("Не выбран статус", "error")
+        msg = "Не выбран статус"
+        if wants_json:
+            return jsonify({"ok": False, "message": msg}), 400
+        flash(msg, "error")
+        return redirect(url_for("admin.support_ticket_detail", ticket_id=ticket_id))
+
+    db = _get_admin_db()
+    db.update_ticket_status(ticket_id, status)
+    sent_to_user = False
+    warn_text = None
+
+    if response_message and response_message.strip():
+        try:
+            with db._connect() as conn:
+                conn.execute(
+                    "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, sent_at) VALUES (?, ?, ?, datetime('now'))",
+                    (ticket_id, "admin", response_message.strip())
+                )
+                ticket_info = conn.execute(
+                    "SELECT p.telegram_id FROM support_tickets t JOIN participants p ON t.participant_id = p.id WHERE t.id = ?",
+                    (ticket_id,)
+                ).fetchone()
+                conn.commit()
+            bot_service = current_app.config.get("BROADCAST_SERVICE")
+            if bot_service and ticket_info and ticket_info[0]:
+                submit_coroutine(bot_service.send_broadcast(response_message.strip(), [ticket_info[0]]))
+                sent_to_user = True
+            elif not ticket_info or not ticket_info[0]:
+                warn_text = "Ответ сохранен, но не найден Telegram ID пользователя"
+            else:
+                warn_text = "Ответ сохранен, но сервис уведомлений недоступен"
+        except Exception as e:
+            current_app.logger.exception("Ошибка отправки ответа")
+            if wants_json:
+                return jsonify({"ok": False, "message": f"Ошибка отправки ответа: {e}"}), 500
+            flash(f"Ошибка отправки ответа: {e}", "error")
+            return redirect(url_for("admin.support_ticket_detail", ticket_id=ticket_id))
+
+    if wants_json:
+        return jsonify({
+            "ok": True,
+            "status": status,
+            "sent_to_user": sent_to_user,
+            "warning": warn_text,
+        })
+
+    if sent_to_user:
+        flash("Ответ отправлен пользователю", "success")
     else:
-        db = _get_admin_db()
-        db.update_ticket_status(ticket_id, status)
-        
-        # Send response message if provided
-        if response_message and response_message.strip():
-            try:
-                # Add response message to ticket
-                with db._connect() as conn:
-                    conn.execute(
-                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, sent_at) VALUES (?, ?, ?, datetime('now'))",
-                        (ticket_id, "admin", response_message.strip())
-                    )
-                    conn.commit()
-                
-                    # Get user's telegram_id from participants table via ticket
-                    ticket_info = conn.execute(
-                        "SELECT p.telegram_id FROM support_tickets t JOIN participants p ON t.participant_id = p.id WHERE t.id = ?", 
-                        (ticket_id,)
-                    ).fetchone()
-                    
-                # Send to user via Telegram
-                bot_service = current_app.config.get("BROADCAST_SERVICE")
-                if bot_service and ticket_info and ticket_info[0]:
-                    submit_coroutine(bot_service.send_broadcast(response_message.strip(), [ticket_info[0]]))
-                    flash("Ответ отправлен пользователю", "success")
-                elif not ticket_info or not ticket_info[0]:
-                    flash("Ответ сохранен, но не найден Telegram ID пользователя", "warning")
-                else:
-                    flash("Ответ сохранен, но сервис уведомлений недоступен", "warning")
-            except Exception as e:
-                current_app.logger.exception("Ошибка отправки ответа")
-                flash(f"Ошибка отправки ответа: {e}", "error")
-        else:
-            flash("Статус тикета обновлен", "success")
-    
+        flash(warn_text or "Статус тикета обновлен", "success" if not warn_text else "warning")
     return redirect(url_for("admin.support_ticket_detail", ticket_id=ticket_id))
 
 
@@ -300,6 +462,138 @@ def settings():
         "MAX_PARTICIPANTS": current_app.config.get("MAX_PARTICIPANTS", 10000),
     }
     return render_template("settings.html", config=cfg)
+
+
+@admin_bp.route("/settings", methods=["POST"])
+@login_required
+def save_settings():
+    # Caution: For demo, allow updating only a few runtime config values
+    try:
+        web_host = request.form.get("WEB_HOST")
+        web_port = request.form.get("WEB_PORT", type=int)
+        upload_folder = request.form.get("UPLOAD_FOLDER")
+        export_folder = request.form.get("EXPORT_FOLDER")
+        max_participants = request.form.get("MAX_PARTICIPANTS", type=int)
+        app = current_app
+        if web_host:
+            app.config["WEB_HOST"] = web_host
+        if web_port:
+            app.config["WEB_PORT"] = web_port
+        if upload_folder:
+            app.config["UPLOAD_FOLDER"] = upload_folder
+        if export_folder:
+            app.config["EXPORT_FOLDER"] = export_folder
+        if max_participants:
+            app.config["MAX_PARTICIPANTS"] = max_participants
+        flash("Настройки сохранены (в памяти процесса)", "success")
+    except Exception as e:
+        app.logger.exception("Ошибка сохранения настроек")
+        flash(f"Не удалось сохранить: {e}", "error")
+    return redirect(url_for('admin.settings'))
+
+
+@admin_bp.route("/analytics")
+@login_required
+def analytics():
+    db = _get_admin_db()
+    stats = db.get_statistics()
+    # Broadcast audience success/error breakdown
+    broadcasts, _ = db.list_broadcasts(page=1, per_page=1000000)
+    audience_breakdown = {}
+    for b in broadcasts:
+        aud = (b.get("media_type") or "all")
+        succ = int(b.get("sent_count") or 0)
+        fail = int(b.get("failed_count") or 0)
+        agg = audience_breakdown.setdefault(aud, {"success": 0, "failed": 0})
+        agg["success"] += succ
+        agg["failed"] += fail
+    return render_template("analytics.html", stats=stats, broadcast_audience_breakdown=audience_breakdown)
+
+
+@admin_bp.route("/moderation")
+@login_required
+def moderation():
+    db = _get_admin_db()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    participants, total = db.list_participants(status="pending", page=page, per_page=per_page)
+    pages = (total + per_page - 1) // per_page
+    return render_template(
+        "moderation.html",
+        participants=participants,
+        total=total,
+        page=page,
+        pages=pages,
+        per_page=per_page,
+        stats=db.get_statistics(),
+    )
+
+
+@admin_bp.route("/system")
+@login_required
+def system_page():
+    app = current_app
+    cfg = {
+        "WEB_HOST": app.config.get("WEB_HOST", "0.0.0.0"),
+        "WEB_PORT": app.config.get("WEB_PORT", 5000),
+        "UPLOAD_FOLDER": app.config.get("UPLOAD_FOLDER", "uploads"),
+        "EXPORT_FOLDER": app.config.get("EXPORT_FOLDER", "exports"),
+        "LOG_FOLDER": app.config.get("LOG_FOLDER", "logs"),
+        "DATABASE_PATH": app.config.get("DATABASE_PATH"),
+    }
+    import os, time
+    health = {
+        "database_exists": os.path.exists(cfg["DATABASE_PATH"]) if cfg.get("DATABASE_PATH") else False,
+        "uploads_exists": os.path.isdir(cfg["UPLOAD_FOLDER"]),
+        "exports_exists": os.path.isdir(cfg["EXPORT_FOLDER"]),
+        "logs_exists": os.path.isdir(cfg["LOG_FOLDER"]),
+        "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    # List logs
+    logs = []
+    try:
+        for name in sorted(os.listdir(cfg["LOG_FOLDER"])):
+            path = os.path.join(cfg["LOG_FOLDER"], name)
+            if os.path.isfile(path):
+                stat = os.stat(path)
+                logs.append({
+                    "name": name,
+                    "size": stat.st_size,
+                    "mtime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+                })
+    except Exception:
+        pass
+    return render_template("system.html", config=cfg, health=health, logs=logs)
+
+
+@admin_bp.route("/system/log/<path:log_name>")
+@login_required
+def view_log(log_name: str):
+    from werkzeug.utils import secure_filename as _sec
+    safe = _sec(os.path.basename(log_name))
+    app = current_app
+    folder = app.config.get("LOG_FOLDER", "logs")
+    path = os.path.join(folder, safe)
+    lines = request.args.get("lines", 500, type=int)
+    content = ""
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            # Read last N lines efficiently
+            from collections import deque
+            content = "".join(deque(f, maxlen=lines))
+    except Exception as e:
+        flash(f"Не удалось прочитать лог: {e}", "error")
+        return redirect(url_for("admin.system_page"))
+    return render_template("log_view.html", log_name=safe, content=content)
+
+
+@admin_bp.route("/system/log/<path:log_name>/download")
+@login_required
+def download_log(log_name: str):
+    from werkzeug.utils import secure_filename as _sec
+    safe = _sec(os.path.basename(log_name))
+    folder = current_app.config.get("LOG_FOLDER", "logs")
+    return send_from_directory(folder, safe, as_attachment=True, download_name=safe)
 
 
 @admin_bp.route("/broadcasts", methods=["POST"])
@@ -394,6 +688,10 @@ def create_broadcast():
         current_app.logger.exception("Ошибка запуска рассылки")
         flash(f"Рассылка '{title}' создана, но произошла ошибка при отправке: {e}", "error")
 
+    # If request expects JSON (AJAX), return JSON for better UX
+    if request.headers.get('Accept', '').lower().startswith('application/json'):
+        from flask import jsonify
+        return jsonify({"message": "Рассылка создана", "redirect": url_for("admin.broadcasts")})
     return redirect(url_for("admin.broadcasts"))
 
 
@@ -499,8 +797,12 @@ def support_ticket_detail(ticket_id: int):
 @login_required
 def winner_detail(winner_id: int):
     db = _get_admin_db()
-    winners = db.list_winners(limit=1000)
-    winner = next((w for w in winners if w["id"] == winner_id), None)
+    # Prefer a targeted query when available; fallback to search in list
+    try:
+        winners = db.list_winners(limit=1000)
+        winner = next((w for w in winners if w["id"] == winner_id), None)
+    except Exception:
+        winner = None
     if not winner:
         flash("Победитель не найден", "error")
         return redirect(url_for("admin.lottery"))
@@ -510,16 +812,83 @@ def winner_detail(winner_id: int):
 @admin_bp.route("/lottery/reroll/<int:winner_id>", methods=["POST"])
 @login_required
 def reroll_winner(winner_id: int):
-    # Placeholder for reroll functionality
-    flash("Функция перерозыгрыша в разработке", "warning")
+    db = _get_admin_db()
+    # Get the winner to reroll
+    winners = db.list_winners(limit=1000)
+    target = next((w for w in winners if w["id"] == winner_id), None)
+    if not target:
+        flash("Победитель не найден", "error")
+        return redirect(url_for("admin.lottery"))
+
+    try:
+        # Policy: require reason and limit reroll within 24h of draw
+        reason = (request.form.get('reason') or '').strip()
+        if not reason:
+            flash("Укажите причину перерозыгрыша", "error")
+            return redirect(url_for("admin.winner_detail", winner_id=winner_id))
+        from datetime import datetime, timedelta
+        draw_dt_raw = target.get("draw_date")
+        # draw_date is usually a string; try to parse
+        window_ok = True
+        try:
+            draw_dt = datetime.fromisoformat(str(draw_dt_raw))
+            window_ok = datetime.utcnow() - draw_dt <= timedelta(hours=24)
+        except Exception:
+            window_ok = True  # if cannot parse, allow
+        if not window_ok:
+            flash("Перерозыгрыш возможен только в течение 24 часов после розыгрыша", "warning")
+            return redirect(url_for("admin.winner_detail", winner_id=winner_id))
+
+        # Simple reroll: pick another approved participant who is not already a winner in this run
+        from database.repositories import get_approved_participants
+        from services import run_coroutine_sync
+        approved = run_coroutine_sync(get_approved_participants())
+        approved_ids = [pid for pid, _ in approved]
+        run_winners = {w["participant_id"] for w in db.list_winners(run_id=target["run_id"], limit=10000)}
+        candidates = [pid for pid in approved_ids if pid not in run_winners]
+        if not candidates:
+            flash("Нет доступных кандидатов для перерозыгрыша", "warning")
+            return redirect(url_for("admin.lottery"))
+
+        import random
+        new_participant_id = random.choice(candidates)
+        # Update winner record to point to new participant
+        with db._connect() as conn:
+            conn.execute(
+                "UPDATE winners SET participant_id=?, lottery_date=CURRENT_TIMESTAMP WHERE id=?",
+                (new_participant_id, winner_id),
+            )
+            # Optionally, store audit log
+            try:
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS reroll_audit (id INTEGER PRIMARY KEY, winner_id INT, reason TEXT, at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+                )
+                conn.execute(
+                    "INSERT INTO reroll_audit (winner_id, reason) VALUES (?, ?)",
+                    (winner_id, reason),
+                )
+            except Exception:
+                pass
+            conn.commit()
+        flash("Победитель переопределен", "success")
+    except Exception as e:
+        current_app.logger.exception("Ошибка перерозыгрыша")
+        flash(f"Ошибка перерозыгрыша: {e}", "error")
     return redirect(url_for("admin.lottery"))
 
 
 @admin_bp.route("/lottery/delete_winner/<int:winner_id>", methods=["POST"])
 @login_required
 def delete_winner(winner_id: int):
-    # Placeholder for delete winner functionality
-    flash("Функция удаления победителя в разработке", "warning")
+    db = _get_admin_db()
+    try:
+        with db._connect() as conn:
+            conn.execute("DELETE FROM winners WHERE id=?", (winner_id,))
+            conn.commit()
+        flash("Победитель удален", "success")
+    except Exception as e:
+        current_app.logger.exception("Ошибка удаления победителя")
+        flash(f"Не удалось удалить победителя: {e}", "error")
     return redirect(url_for("admin.lottery"))
 
 
@@ -649,4 +1018,58 @@ def serve_upload(filename: str):
     # Use send_from_directory with proper path handling
     import flask
     return flask.send_from_directory(str(base_path), safe_name)
+
+
+@admin_bp.route("/api/search")
+@login_required
+def api_search():
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify({"results": []})
+    db = _get_admin_db()
+    results = {"participants": [], "tickets": [], "winners": []}
+    try:
+        # Participants
+        participants, _ = db.list_participants(search=q, page=1, per_page=10)
+        results["participants"] = [
+            {
+                "type": "participant",
+                "id": p.id,
+                "title": p.full_name,
+                "subtitle": p.phone_number,
+                "url": url_for('admin.participant_detail', participant_id=p.id),
+            }
+            for p in participants
+        ]
+        # Tickets
+        tickets, _ = db.list_support_tickets(page=1, per_page=200)
+        q_lower = q.lower()
+        ticket_hits = [t for t in tickets if q_lower in (t["subject"] or "").lower() or q_lower in (t["message"] or "").lower()]
+        results["tickets"] = [
+            {
+                "type": "ticket",
+                "id": t["id"],
+                "title": t["subject"] or f"Тикет #{t['id']}",
+                "subtitle": t["category"],
+                "url": url_for('admin.support_ticket_detail', ticket_id=t["id"]),
+            }
+            for t in ticket_hits[:10]
+        ]
+        # Winners
+        winners = db.list_winners(limit=200)
+        winner_hits = [w for w in winners if q_lower in (w["full_name"] or "").lower() or q_lower in str(w["participant_id"]) ]
+        results["winners"] = [
+            {
+                "type": "winner",
+                "id": w["id"],
+                "title": w["full_name"] or f"ID {w['participant_id']}",
+                "subtitle": f"Розыгрыш #{w['draw_number']}",
+                "url": url_for('admin.winner_detail', winner_id=w["id"]) ,
+            }
+            for w in winner_hits[:10]
+        ]
+    except Exception as e:
+        current_app.logger.exception("Ошибка поиска")
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"results": results})
 

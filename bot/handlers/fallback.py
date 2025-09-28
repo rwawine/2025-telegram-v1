@@ -28,8 +28,8 @@ class SmartFallbackHandler:
         self._register_handlers()
     
     def setup(self, dispatcher) -> None:
-        # Fallback обработчики должны быть зарегистрированы последними
-        dispatcher.include_router(self.router, priority=-100)
+        # В aiogram 3.x приоритеты не поддерживаются напрямую на include_router
+        dispatcher.include_router(self.router)
     
     def _register_handlers(self):
         """Регистрация универсальных fallback обработчиков"""
@@ -38,50 +38,42 @@ class SmartFallbackHandler:
         self.router.message.register(
             self.handle_unexpected_text,
             F.text,
-            priority=-1000
         )
         
         # Обработчики для разных типов контента в неожиданных местах
         self.router.message.register(
             self.handle_unexpected_sticker,
             F.sticker,
-            priority=-900
         )
         
         self.router.message.register(
             self.handle_unexpected_voice,
             F.voice | F.video_note,
-            priority=-900
         )
         
         self.router.message.register(
             self.handle_unexpected_media,
             F.video | F.audio | F.animation | F.document,
-            priority=-900
         )
         
         self.router.message.register(
             self.handle_unexpected_photo,
             F.photo,
-            priority=-900
         )
         
         self.router.message.register(
             self.handle_unexpected_contact,
             F.contact,
-            priority=-900  
         )
         
         self.router.message.register(
             self.handle_unexpected_location,
             F.location | F.venue,
-            priority=-900
         )
         
         # Обработчик для неизвестных callback queries
         self.router.callback_query.register(
             self.handle_unknown_callback,
-            priority=-1000
         )
     
     async def handle_unexpected_text(self, message: types.Message, state: FSMContext):
