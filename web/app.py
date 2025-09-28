@@ -51,7 +51,7 @@ def create_app(config, testing=False) -> Flask:
     # Root redirects to admin dashboard/login
     @app.route('/')
     def root():
-        return redirect(url_for('admin.dashboard'))
+        return redirect(url_for('admin.login_page'))
     # Expose helper to Jinja: check if endpoint exists
     def has_endpoint(name: str) -> bool:
         return name in app.view_functions

@@ -17,7 +17,7 @@ from services.lottery import SecureLottery
 from web.auth import AdminCredentials, AdminUser, validate_credentials
 
 
-admin_bp = Blueprint("admin", __name__)
+admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
 def _get_admin_db() -> AdminDatabase:
@@ -874,11 +874,18 @@ def support_ticket_detail(ticket_id: int):
 def delete_support_ticket(ticket_id: int):
     db = _get_admin_db()
     try:
+        # Check if ticket exists first
+        with db._connect() as conn:
+            ticket_exists = conn.execute("SELECT id FROM support_tickets WHERE id = ?", (ticket_id,)).fetchone()
+            if not ticket_exists:
+                flash(f"Тикет #{ticket_id} не найден", "error")
+                return redirect(url_for("admin.support_tickets"))
+        
         db.delete_ticket(ticket_id)
-        flash("Тикет удален", "success")
+        flash(f"Тикет #{ticket_id} удален", "success")
     except Exception as e:
-        current_app.logger.exception("Ошибка удаления тикета")
-        flash(f"Не удалось удалить тикет: {e}", "error")
+        current_app.logger.exception(f"Ошибка удаления тикета #{ticket_id}")
+        flash(f"Не удалось удалить тикет #{ticket_id}: {e}", "error")
     return redirect(url_for("admin.support_tickets"))
 
 
@@ -1013,17 +1020,22 @@ def send_broadcast(broadcast_id: int):
             # Start broadcast sending if BroadcastService is available
             bot_service = current_app.config.get("BROADCAST_SERVICE")
             if bot_service:
-                submit_coroutine(bot_service.send_broadcast(
-                    broadcast["message_text"], 
-                    participant_ids, 
-                    media_path=broadcast.get("media_path"), 
-                    media_type=broadcast.get("media_type"), 
-                    caption=broadcast.get("media_caption")
-                ))
-                flash(f"Рассылка начала отправку ({len(participant_ids)} получателей)", "success")
+                try:
+                    submit_coroutine(bot_service.send_broadcast(
+                        broadcast["message_text"], 
+                        participant_ids, 
+                        media_path=broadcast.get("media_path"), 
+                        media_type=broadcast.get("media_type"), 
+                        caption=broadcast.get("media_caption")
+                    ))
+                    flash(f"Рассылка начала отправку ({len(participant_ids)} получателей)", "success")
+                except Exception as e:
+                    current_app.logger.exception("Ошибка запуска рассылки")
+                    db.update_broadcast_status(broadcast_id, "failed")
+                    flash(f"Ошибка запуска рассылки: {e}", "error")
             else:
                 db.update_broadcast_status(broadcast_id, "failed")
-                flash("Сервис рассылки недоступен", "error")
+                flash("Сервис рассылки недоступен. Убедитесь, что бот запущен и настроен правильно.", "error")
         else:
             db.update_broadcast_status(broadcast_id, "failed")
             flash("Нет получателей для рассылки", "error")

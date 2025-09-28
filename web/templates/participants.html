@@ -134,10 +134,21 @@
                             </span>
                         </td>
                         <td>
-                            <span class="status-badge {% if p.has_photo %}status-approved{% else %}status-archived{% endif %}" 
-                                  style="font-size: 11px;">
-                                {% if p.has_photo %}Есть{% else %}Нет{% endif %}
-                            </span>
+                            {% if p.photo_path %}
+                                <div class="d-flex align-items-center">
+                                    <img src="{{ url_for('admin.serve_upload', filename=p.photo_path.split('/')[-1]) }}" 
+                                         alt="Фото" 
+                                         class="photo-preview me-2" 
+                                         style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px; cursor: pointer;"
+                                         data-bs-toggle="modal" 
+                                         data-bs-target="#photoModal"
+                                         data-photo-src="{{ url_for('admin.serve_upload', filename=p.photo_path.split('/')[-1]) }}"
+                                         onclick="showPhotoModal(this)">
+                                    <span class="status-badge status-approved" style="font-size: 11px;">Есть</span>
+                                </div>
+                            {% else %}
+                                <span class="status-badge status-archived" style="font-size: 11px;">Нет</span>
+                            {% endif %}
                         </td>
                         <td>
                             <div class="dropdown">
@@ -253,20 +264,36 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('bulk-delete')?.addEventListener('click', function(e) {
-        e.preventDefault();
         const ids = Array.from(document.querySelectorAll('.row-select:checked')).map(cb => cb.value);
-        if (ids.length === 0) return;
+        if (ids.length === 0) {
+            e.preventDefault();
+            alert('Выберите участников для удаления');
+            return;
+        }
         
-        // Create form for bulk delete
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = "{{ url_for('admin.delete_selected_participants') }}";
-        form.innerHTML = `
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="participant_ids" value="${ids.join(',')}">
-        `;
-        document.body.appendChild(form);
-        form.submit();
+        // Update modal with participant count and action
+        const modal = document.getElementById('confirmationModal');
+        if (modal) {
+            const form = modal.querySelector('#confirmActionForm');
+            if (form) {
+                // Clear previous dynamic fields
+                Array.from(form.querySelectorAll('[data-dynamic-field="1"]')).forEach(el => el.remove());
+                
+                // Add participant IDs as hidden field
+                const idsInput = document.createElement('input');
+                idsInput.type = 'hidden';
+                idsInput.name = 'participant_ids';
+                idsInput.value = ids.join(',');
+                idsInput.setAttribute('data-dynamic-field', '1');
+                form.appendChild(idsInput);
+                
+                // Update modal body with count
+                const bodyEl = modal.querySelector('.modal-body-content');
+                if (bodyEl) {
+                    bodyEl.innerHTML = `Это действие нельзя отменить. Будут удалены ${ids.length} участников и все связанные данные.`;
+                }
+            }
+        }
     });
 
     // Hover эффекты для метрик
@@ -294,6 +321,14 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmClearAllButton.classList.toggle('btn-secondary', !isValid);
         });
     }
+
+    // Photo modal function
+    window.showPhotoModal = function(img) {
+        const modalImg = document.getElementById('modalPhotoImg');
+        if (modalImg && img) {
+            modalImg.src = img.getAttribute('data-photo-src') || img.src;
+        }
+    };
 });
 </script>
 {% endblock %}
@@ -355,6 +390,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     <button type="submit" class="btn btn-danger" id="confirmClearAll" disabled>🗑️ Удалить всех</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Modal -->
+<div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="photoModalLabel">Фото участника</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalPhotoImg" src="" alt="Фото участника" class="img-fluid" style="max-height: 70vh;">
+            </div>
         </div>
     </div>
 </div>

@@ -132,7 +132,7 @@
                                     <i class="fa-solid fa-paper-plane"></i>
                                 </button>
                                 {% endif %}
-                                {% if broadcast.status in ['completed', 'draft', 'failed'] %}
+                                {% if broadcast.status != 'sending' %}
                                 <button class="btn btn-sm btn-outline-danger"
                                          data-bs-toggle="modal"
                                          data-bs-target="#confirmationModal"
