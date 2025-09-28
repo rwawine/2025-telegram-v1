@@ -7,6 +7,12 @@ from typing import Awaitable, Callable, Iterable
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
+try:
+    # aiogram >=3.7.0
+    from aiogram.client.bot import DefaultBotProperties  # type: ignore
+    _DEFAULT_KW = {"default": DefaultBotProperties(parse_mode=ParseMode.HTML)}
+except Exception:  # pragma: no cover
+    _DEFAULT_KW = {"parse_mode": ParseMode.HTML}
 from aiogram.fsm.storage.memory import MemoryStorage
 from asyncio_throttle import Throttler
 
@@ -19,7 +25,8 @@ class OptimizedBot:
         worker_threads: int,
         message_queue_size: int,
     ) -> None:
-        self.bot = Bot(token=token, parse_mode=ParseMode.HTML)
+        # Support both aiogram 3.3 and 3.7+ initializer signatures
+        self.bot = Bot(token=token, **_DEFAULT_KW)
         self.storage = MemoryStorage()
         self.dispatcher = Dispatcher(storage=self.storage)
         self.rate_limit = rate_limit

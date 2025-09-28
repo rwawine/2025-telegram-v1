@@ -216,10 +216,10 @@ class AdminDatabase:
     def create_broadcast(self, message: str, participant_ids: Sequence[int], media_path: str = None, media_type: str = None, media_caption: str = None) -> int:
         with self._connect() as conn:
             cursor = conn.execute(
-                "INSERT INTO broadcast_jobs (message_text, total_recipients, media_path, media_type, media_caption) VALUES (?, ?, ?, ?, ?) RETURNING id",
+                "INSERT INTO broadcast_jobs (message_text, total_recipients, media_path, media_type, media_caption) VALUES (?, ?, ?, ?, ?)",
                 (message, len(participant_ids), media_path, media_type, media_caption or message),
             )
-            job_id = cursor.fetchone()[0]
+            job_id = cursor.lastrowid
             conn.executemany(
                 """
                 INSERT INTO broadcast_queue (job_id, participant_id, message_text, media_path, media_type, media_caption, status)
@@ -278,6 +278,13 @@ class AdminDatabase:
             )
             conn.commit()
 
+    def delete_ticket(self, ticket_id: int) -> None:
+        """Delete a support ticket and its messages."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM support_ticket_messages WHERE ticket_id=?", (ticket_id,))
+            conn.execute("DELETE FROM support_tickets WHERE id=?", (ticket_id,))
+            conn.commit()
+
     def list_broadcasts(
         self,
         status: Optional[str] = None,
@@ -310,6 +317,19 @@ class AdminDatabase:
             rows = conn.execute(query, params).fetchall()
             total = conn.execute(count_query, count_params).fetchone()[0]
         return rows, total
+
+    def clear_participants(self) -> None:
+        """Dangerous: wipe participants and related data (winners, queues, tickets)."""
+        with self._connect() as conn:
+            # Order matters due to foreign keys
+            conn.execute("DELETE FROM winners")
+            conn.execute("DELETE FROM support_ticket_messages")
+            conn.execute("DELETE FROM support_tickets")
+            conn.execute("DELETE FROM broadcast_queue")
+            # Keep broadcast_jobs history, but reset aggregated counts if needed
+            conn.execute("UPDATE broadcast_jobs SET total_recipients=0, started_at=NULL, finished_at=NULL, status='draft'")
+            conn.execute("DELETE FROM participants")
+            conn.commit()
 
     def get_moderation_activity(self) -> Dict[str, int]:
         with self._connect() as conn:

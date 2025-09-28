@@ -131,6 +131,22 @@ def participants():
         stats=stats,
     )
 
+@admin_bp.route("/participants/clear", methods=["POST"])
+@login_required
+def clear_participants():
+    confirm = request.form.get("confirm", "").strip().lower()
+    if confirm != "удалить":
+        flash("Для подтверждения введите слово 'удалить'", "warning")
+        return redirect(url_for("admin.participants"))
+    db = _get_admin_db()
+    try:
+        db.clear_participants()
+        flash("Все участники и связанные данные удалены", "success")
+    except Exception as e:
+        current_app.logger.exception("Ошибка очистки участников")
+        flash(f"Не удалось очистить участников: {e}", "error")
+    return redirect(url_for("admin.participants"))
+
 
 @admin_bp.route("/participants/import", methods=["POST"])
 @login_required
@@ -346,6 +362,12 @@ def broadcasts():
         by_status=by_status,
         by_audience=by_audience,
     )
+
+@admin_bp.route("/broadcasts/<int:broadcast_id>/remove", methods=["POST"])
+@login_required
+def remove_broadcast_alias(broadcast_id: int):
+    # Backward-compatible alias to the canonical delete endpoint
+    return delete_broadcast(broadcast_id)
 
 
 @admin_bp.route("/participants/export")
@@ -820,6 +842,18 @@ def support_ticket_detail(ticket_id: int):
             (ticket_id,),
         ).fetchall()
     return render_template("support_ticket_detail.html", ticket=ticket, messages=messages)
+
+@admin_bp.route("/support_tickets/<int:ticket_id>/delete", methods=["POST"])
+@login_required
+def delete_support_ticket(ticket_id: int):
+    db = _get_admin_db()
+    try:
+        db.delete_ticket(ticket_id)
+        flash("Тикет удален", "success")
+    except Exception as e:
+        current_app.logger.exception("Ошибка удаления тикета")
+        flash(f"Не удалось удалить тикет: {e}", "error")
+    return redirect(url_for("admin.support_tickets"))
 
 
 @admin_bp.route("/winners/<int:winner_id>")

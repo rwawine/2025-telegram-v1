@@ -224,7 +224,9 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary" x-text="isEditMode ? 'Сохранить изменения' : 'Создать рассылку'"></button>
+                    <button type="submit" class="btn btn-primary">
+                        <span x-text="isEditMode ? 'Сохранить изменения' : 'Создать рассылку'"></span>
+                    </button>
                 </div>
             </form>
         </div>
