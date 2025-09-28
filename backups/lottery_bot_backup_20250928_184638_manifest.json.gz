@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-09-28T18:46:38.819914",
+  "database_backup": "lottery_bot_backup_20250928_184638_db.sqlite.gz",
+  "config_backups": [
+    "lottery_bot_backup_20250928_184638_.env.gz",
+    "lottery_bot_backup_20250928_184638_config.py.gz",
+    "lottery_bot_backup_20250928_184638_requirements.txt.gz"
+  ],
+  "uploads_backup": "lottery_bot_backup_20250928_184638_uploads.tar.gz",
+  "compressed": true,
+  "total_files": 5
+}

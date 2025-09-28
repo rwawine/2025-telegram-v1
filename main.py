@@ -152,12 +152,13 @@ async def main() -> None:
     
     runner = aiohttp_web.AppRunner(aio_app)
     await runner.setup()
-    # Bind to PORT env var if present (Render/Heroku)
+    # Bind to PORT env var if present (Render/Heroku). Always bind to 0.0.0.0 there.
     effective_port = int(os.getenv("PORT", str(config.web_port)))
-    site = aiohttp_web.TCPSite(runner, config.web_host, effective_port)
+    effective_host = "0.0.0.0" if os.getenv("PORT") else config.web_host
+    site = aiohttp_web.TCPSite(runner, effective_host, effective_port)
     await site.start()
     
-    logger.info(f"🚀 Web server started on http://{config.web_host}:{effective_port}")
+    logger.info(f"🚀 Web server started on http://{effective_host}:{effective_port}")
     logger.info("🔗 Admin panel: http://localhost:5000")
     logger.info("💻 Default login: admin / 123456")
     

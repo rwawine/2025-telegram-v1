@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, url_for
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from flask_caching import Cache
 from flask_wtf.csrf import CSRFProtect
@@ -47,6 +47,11 @@ def create_app(config, testing=False) -> Flask:
     # Update credentials with hashed password
     credentials = init_login_manager(app, credentials)
     register_routes(app)
+    
+    # Root redirects to admin dashboard/login
+    @app.route('/')
+    def root():
+        return redirect(url_for('admin.dashboard'))
     # Expose helper to Jinja: check if endpoint exists
     def has_endpoint(name: str) -> bool:
         return name in app.view_functions
