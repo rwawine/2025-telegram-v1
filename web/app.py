@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from flask import Flask, render_template
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from flask_caching import Cache
 from flask_wtf.csrf import CSRFProtect
 
@@ -82,4 +83,10 @@ def create_app(config, testing=False) -> Flask:
         app.logger.error(f"Internal server error: {error}")
         return render_template('500.html'), 500
     
+    # Expose Prometheus metrics at /metrics
+    @app.route('/metrics')
+    def metrics():
+        data = generate_latest()
+        return data, 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
     return app

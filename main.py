@@ -9,7 +9,7 @@ from pathlib import Path
 
 from aiohttp import web as aiohttp_web
 from aiohttp_wsgi import WSGIHandler
-from prometheus_client import start_http_server
+import os
 
 from bot import OptimizedBot
 # Импорт handlers перенесен в init_bot после инициализации кеша
@@ -73,8 +73,11 @@ async def main() -> None:
         print("✅ System initialized. Starting application...")
     
     config = load_config()
-    if not config.bot_token or config.bot_token == "your_bot_token_here":
-        logger.warning("BOT_TOKEN is not set properly. Running in admin-only mode (web interface only).")
+    if not config.enable_bot or not config.bot_token or config.bot_token == "your_bot_token_here":
+        if not config.enable_bot:
+            logger.info("ENABLE_BOT is false. Running in admin-only mode (web interface only).")
+        else:
+            logger.warning("BOT_TOKEN is not set properly. Running in admin-only mode (web interface only).")
         # Don't return, allow web interface to run without bot
 
     loop = asyncio.get_running_loop()
@@ -97,7 +100,7 @@ async def main() -> None:
     bot = None
     broadcast_service = None
     
-    if config.bot_token and config.bot_token != "your_bot_token_here":
+    if config.enable_bot and config.bot_token and config.bot_token != "your_bot_token_here":
         try:
             bot = await init_bot(config, cache)
             broadcast_service = BroadcastService(
@@ -113,7 +116,6 @@ async def main() -> None:
         logger.info("Running in admin-only mode (web interface only)")
 
     monitor = PerformanceMonitor()
-    start_http_server(port=config.prometheus_port)
     
     # Initialize backup service
     backup_service = init_backup_service(
@@ -150,10 +152,12 @@ async def main() -> None:
     
     runner = aiohttp_web.AppRunner(aio_app)
     await runner.setup()
-    site = aiohttp_web.TCPSite(runner, config.web_host, config.web_port)
+    # Bind to PORT env var if present (Render/Heroku)
+    effective_port = int(os.getenv("PORT", str(config.web_port)))
+    site = aiohttp_web.TCPSite(runner, config.web_host, effective_port)
     await site.start()
     
-    logger.info(f"🚀 Web server started on http://{config.web_host}:{config.web_port}")
+    logger.info(f"🚀 Web server started on http://{config.web_host}:{effective_port}")
     logger.info("🔗 Admin panel: http://localhost:5000")
     logger.info("💻 Default login: admin / 123456")
     

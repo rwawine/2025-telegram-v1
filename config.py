@@ -40,6 +40,7 @@ class Config:
     admin_password: str
     environment: str
     debug: bool
+    enable_bot: bool
     web_host: str
     web_port: int
     secret_key: str
@@ -80,12 +81,13 @@ def load_config() -> Config:
     admin_ids = tuple(int(id_str) for id_str in admin_ids_str.split(",") if id_str.strip())
     
     return Config(
-        bot_token=os.getenv("BOT_TOKEN", "8030052876:AAFy39ctXzW90ht4JA0XyR9Ykg6pHM9QiG0"),
+        bot_token=os.getenv("BOT_TOKEN", "your_bot_token_here"),
         admin_ids=admin_ids,
         admin_username=os.getenv("ADMIN_USERNAME", "admin"),
         admin_password=os.getenv("ADMIN_PASSWORD", "123456"),
         environment=os.getenv("ENVIRONMENT", "development"),
         debug=_get_bool("DEBUG", False),
+        enable_bot=_get_bool("ENABLE_BOT", True),
         web_host=os.getenv("WEB_HOST", "0.0.0.0"),
         web_port=_get_int("WEB_PORT", 5000),
         secret_key=os.getenv("SECRET_KEY", "production_secret_key_must_be_changed_in_production_environment"),
