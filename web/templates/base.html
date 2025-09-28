@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Админ-панель{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    {% block styles %}{% endblock %}
+</head>
+<body class="d-flex flex-column h-100">
+    <div class="d-flex flex-grow-1">
+        <!-- Sidebar -->
+        <nav class="sidebar d-none d-md-block bg-dark">
+            <div class="sidebar-sticky pt-3">
+                <div class="px-3 mb-3 text-center">
+                    <h5 class="text-white"><i class="fa-solid fa-trophy me-2"></i>Lottery Admin</h5>
+                </div>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}" href="{{ url_for('admin.dashboard') }}">
+                            <i class="fa-solid fa-chart-pie fa-fw"></i> Дашборд
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint and 'participants' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin.participants') }}">
+                            <i class="fa-solid fa-users fa-fw"></i> Участники
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin.lottery' %}active{% endif %}" href="{{ url_for('admin.lottery') }}">
+                            <i class="fa-solid fa-ticket fa-fw"></i> Розыгрыш
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'admin.broadcasts' %}active{% endif %}" href="{{ url_for('admin.broadcasts') }}">
+                            <i class="fa-solid fa-tower-broadcast fa-fw"></i> Рассылки
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint and 'support' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin.support_tickets') }}">
+                            <i class="fa-solid fa-headset fa-fw"></i> Поддержка
+                        </a>
+                    </li>
+                </ul>
+                <div class="px-3 mt-auto pt-3 pb-3 border-top border-secondary">
+                    <div class="d-flex align-items-center">
+                        <i class="fa-solid fa-user-circle text-white fs-4"></i>
+                        <div class="ms-3">
+                            <p class="text-white mb-0 small">{{ current_user.username }}</p>
+                            <a href="{{ url_for('admin.logout') }}" class="text-muted small">Выйти</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main content -->
+        <main class="content flex-grow-1 p-4">
+            <div class="container-fluid">
+                <!-- Mobile header -->
+                <div class="d-md-none mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fa-solid fa-trophy me-2"></i>Lottery Admin</h5>
+                        <button class="btn btn-light" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobile-sidebar" aria-controls="mobile-sidebar">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                    </div>
+                </div>
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- Mobile Sidebar -->
+    <div class="offcanvas offcanvas-start bg-dark text-white" tabindex="-1" id="mobile-sidebar" aria-labelledby="mobile-sidebar-label">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="mobile-sidebar-label"><i class="fa-solid fa-trophy me-2"></i>Админ-панель</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}" href="{{ url_for('admin.dashboard') }}">
+                        <i class="fa-solid fa-chart-pie fa-fw"></i> Дашборд
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'participants' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin.participants') }}">
+                        <i class="fa-solid fa-users fa-fw"></i> Участники
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'admin.lottery' %}active{% endif %}" href="{{ url_for('admin.lottery') }}">
+                        <i class="fa-solid fa-ticket fa-fw"></i> Розыгрыш
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'admin.broadcasts' %}active{% endif %}" href="{{ url_for('admin.broadcasts') }}">
+                        <i class="fa-solid fa-tower-broadcast fa-fw"></i> Рассылки
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint and 'support' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin.support_tickets') }}">
+                        <i class="fa-solid fa-headset fa-fw"></i> Поддержка
+                    </a>
+                </li>
+            </ul>
+            <div class="mt-auto pt-3 pb-3 border-top border-secondary">
+                <div class="d-flex align-items-center">
+                    <i class="fa-solid fa-user-circle text-white fs-4"></i>
+                    <div class="ms-3">
+                        <p class="text-white mb-0 small">{{ current_user.username }}</p>
+                        <a href="{{ url_for('admin.logout') }}" class="text-muted small">Выйти</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmationModalLabel">Подтверждение действия</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-body-content">Вы уверены, что хотите выполнить это действие?</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <form id="confirmActionForm" method="post" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-danger">Подтвердить</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash messages data -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <script type="application/json" id="flash-messages-data">
+    [
+        {% for category, message in messages %}
+        {
+            "type": "{% if category == 'message' %}info{% else %}{{ category }}{% endif %}",
+            "message": {{ message|tojson }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+    </script>
+    {% endif %}
+    {% endwith %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+    <script>
+        const notyf = new Notyf({
+            duration: 5000,
+            position: {
+                x: 'right',
+                y: 'top',
+            },
+            types: [
+                {
+                    type: 'info',
+                    background: '#0d6efd',
+                    icon: false
+                },
+                {
+                    type: 'warning',
+                    background: '#ffc107',
+                    icon: false
+                },
+                {
+                    type: 'success',
+                    background: '#198754',
+                    icon: false
+                },
+                {
+                    type: 'error',
+                    background: '#dc3545',
+                    icon: false
+                }
+            ]
+        });
+
+        // Flash messages handling
+        document.addEventListener('DOMContentLoaded', function() {
+            var flashMessagesElement = document.getElementById('flash-messages-data');
+            if (flashMessagesElement) {
+                var flashMessages = JSON.parse(flashMessagesElement.textContent);
+                flashMessages.forEach(function(flash) {
+                    notyf.open({ type: flash.type, message: flash.message });
+                });
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var confirmationModal = document.getElementById('confirmationModal');
+            if (confirmationModal) {
+                confirmationModal.addEventListener('show.bs.modal', function (event) {
+                    var button = event.relatedTarget;
+                    var title = button.getAttribute('data-bs-title');
+                    var body = button.getAttribute('data-bs-body');
+                    var action = button.getAttribute('data-bs-action');
+
+                    var modalTitle = confirmationModal.querySelector('.modal-title');
+                    var modalBodyContent = confirmationModal.querySelector('.modal-body-content');
+                    var confirmForm = confirmationModal.querySelector('#confirmActionForm');
+
+                    if (title) modalTitle.textContent = title;
+                    if (body && modalBodyContent) modalBodyContent.innerHTML = body;
+                    if (action && confirmForm) confirmForm.action = action;
+                });
+            }
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

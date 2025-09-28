@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}{{ participant.full_name }} - Участник{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2">{{ participant.full_name }}</h1>
+        <p class="text-muted">Детальная информация об участнике</p>
+    </div>
+    <a href="{{ url_for('admin.participants') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa-solid fa-arrow-left me-2"></i>Назад к списку
+    </a>
+</div>
+
+<div class="row g-4">
+
+    <!-- Main Content -->
+    <div class="col-lg-8">
+        <div class="d-flex flex-column gap-4">
+            <!-- Participant Information -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-user-circle me-2"></i>
+                    Основная информация
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Полное имя</dt>
+                        <dd class="col-sm-8">{{ participant.full_name }}</dd>
+
+                        <dt class="col-sm-4">Телефон</dt>
+                        <dd class="col-sm-8">{{ participant.phone_number }}</dd>
+
+                        <dt class="col-sm-4">Telegram</dt>
+                        <dd class="col-sm-8">
+                            {% if participant.username %}@{{ participant.username }}{% else %}-{% endif %}
+                            <span class="text-muted small"> (ID: {{ participant.telegram_id }})</span>
+                        </dd>
+
+                        <dt class="col-sm-4">Карта лояльности</dt>
+                        <dd class="col-sm-8">{{ participant.loyalty_card }}</dd>
+
+                        <dt class="col-sm-4">Дата регистрации</dt>
+                        <dd class="col-sm-8">{{ participant.registration_date if participant.registration_date else 'N/A' }}</dd>
+
+                        <dt class="col-sm-4">Текущий статус</dt>
+                        <dd class="col-sm-8">
+                            {% if participant.status == 'approved' %}
+                                <span class="badge badge-light-success">Одобрено</span>
+                            {% elif participant.status == 'pending' %}
+                                <span class="badge badge-light-warning">На рассмотрении</span>
+                            {% elif participant.status == 'rejected' %}
+                                <span class="badge badge-light-danger">Отклонено</span>
+                            {% endif %}
+                        </dd>
+
+                        {% if participant.admin_notes %}
+                        <dt class="col-sm-4">Заметки администратора</dt>
+                        <dd class="col-sm-8">
+                            <div class="bg-light p-3 rounded border">{{ participant.admin_notes | replace('\n', '<br>') | safe }}</div>
+                        </dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Leaflet Photo -->
+            {% if participant.photo_path %}
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-image me-2"></i>
+                    Фото лифлета
+                </div>
+                <div class="card-body text-center p-2">
+                    <a href="#" data-bs-toggle="modal" data-bs-target="#photoModal">
+                        <img src="{{ url_for('admin.serve_upload', filename=participant.photo_path.split('/')[-1] if participant.photo_path else '') }}" alt="Фото лифлета" class="img-fluid rounded" style="max-height: 400px;">
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Actions Panel -->
+    <div class="col-lg-4">
+        <div class="d-flex flex-column gap-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-cogs me-2"></i>
+                    Управление статусом
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.update_single_participant_status', participant_id=participant.id) }}" id="statusForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Изменить статус</label>
+                            <select id="status" name="status" class="form-select">
+                                <option value="pending" {% if participant.status == 'pending' %}selected{% endif %}>На рассмотрении</option>
+                                <option value="approved" {% if participant.status == 'approved' %}selected{% endif %}>Одобрить</option>
+                                <option value="rejected" {% if participant.status == 'rejected' %}selected{% endif %}>Отклонить</option>
+                            </select>
+                        </div>
+
+                        <div id="rejectionTemplates" data-show="{% if participant.status == 'rejected' %}true{% else %}false{% endif %}">
+                            <label class="form-label small">Шаблоны причин отклонения:</label>
+                            <div class="d-grid gap-2 mb-3">
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-start" onclick="setNote('Нечеткое фото лифлета.')">📷 Нечеткое фото</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-start" onclick="setNote('Некорректные данные.')">📝 Некорр. данные</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-start" onclick="setNote('Карта не найдена.')">💳 Карта не найдена</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary text-start" onclick="setNote('Нарушение правил.')">⚠️ Нарушение правил</button>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Комментарий для участника (опционально)</label>
+                            <textarea id="notes" name="notes" rows="3" class="form-control" placeholder="Этот комментарий будет отправлен в Telegram...">{{ participant.admin_notes or '' }}</textarea>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="send_notification" id="send_notification" checked>
+                            <label class="form-check-label" for="send_notification">
+                                Отправить уведомление пользователю в Telegram
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fa-solid fa-save me-2"></i>Сохранить изменения
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-bolt me-2"></i>
+                    Быстрые действия
+                </div>
+                <div class="card-body d-grid gap-2">
+                    <a href="https://t.me/{{ participant.username }}" target="_blank" class="btn btn-outline-secondary" {% if not participant.username %}disabled{% endif %}>
+                        <i class="fa-brands fa-telegram me-2"></i>Написать в Telegram
+                    </a>
+                    <button onclick="copyToClipboard('{{ participant.telegram_id }}', 'Telegram ID')" class="btn btn-outline-secondary">
+                        <i class="fa-solid fa-copy me-2"></i>Копировать Telegram ID
+                    </button>
+                    <button onclick="copyToClipboard('{{ participant.phone_number }}', 'Телефон')" class="btn btn-outline-secondary">
+                        <i class="fa-solid fa-copy me-2"></i>Копировать телефон
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Modal -->
+<div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="photoModalLabel">Фото лифлета: {{ participant.full_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img src="{{ url_for('admin.serve_upload', filename=participant.photo_path.split('/')[-1] if participant.photo_path else '') }}" class="img-fluid rounded" alt="Лифлет">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyToClipboard(text, entity) {
+    navigator.clipboard.writeText(text).then(() => {
+        notyf.success(`${entity} скопирован в буфер обмена`);
+    }).catch(err => {
+        notyf.error('Не удалось скопировать');
+        console.error('Failed to copy: ', err);
+    });
+}
+
+function setNote(text) {
+    document.getElementById('notes').value = text;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.getElementById('status');
+    const rejectionTemplates = document.getElementById('rejectionTemplates');
+    const statusForm = document.getElementById('statusForm');
+
+    if(statusSelect && rejectionTemplates) {
+        // Set initial visibility
+        rejectionTemplates.style.display = rejectionTemplates.dataset.show === 'true' ? 'block' : 'none';
+        
+        statusSelect.addEventListener('change', function() {
+            rejectionTemplates.style.display = this.value === 'rejected' ? 'block' : 'none';
+        });
+    }
+
+    if(statusForm) {
+        statusForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const sendNotificationCheckbox = document.getElementById('send_notification');
+            const shouldSendNotification = sendNotificationCheckbox ? sendNotificationCheckbox.checked : false;
+            
+            let title = 'Подтверждение';
+            let body = `Вы уверены, что хотите сохранить изменения?`;
+
+            if (shouldSendNotification) {
+                body += `<br><small class="text-muted">Пользователь получит уведомление в Telegram.</small>`;
+            }
+
+            const confirmModal = document.getElementById('confirmationModal');
+            if(confirmModal) {
+                confirmModal.querySelector('.modal-title').textContent = title;
+                confirmModal.querySelector('.modal-body-content').innerHTML = body;
+                
+                const confirmForm = confirmModal.querySelector('#confirmActionForm');
+                if (confirmForm) {
+                    confirmForm.action = statusForm.action;
+                    confirmForm.onsubmit = (e) => {
+                        e.preventDefault();
+                        statusForm.submit();
+                    };
+                }
+
+                new bootstrap.Modal(confirmModal).show();
+            } else {
+                statusForm.submit();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Управление розыгрышем{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2">Управление розыгрышем</h1>
+        <p class="text-muted">Проведение розыгрыша и просмотр результатов</p>
+    </div>
+    <a href="{{ url_for('admin.participants') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa-solid fa-users me-2"></i>Участники
+    </a>
+</div>
+
+<!-- Stats -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <p class="card-text text-muted mb-1">Всего розыгрышей</p>
+                <h4 class="card-title mb-0">{{ lottery_stats.total_draws or 0 }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <p class="card-text text-muted mb-1">Всего победителей</p>
+                <h4 class="card-title mb-0">{{ lottery_stats.total_winners or 0 }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <p class="card-text text-muted mb-1">Подходящих участников</p>
+                <h4 class="card-title mb-0">{{ eligible_count }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <p class="card-text text-muted mb-1">Процент выигрыша</p>
+                <h4 class="card-title mb-0">{{ "%.1f"|format(lottery_stats.win_rate or 0) }}%</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Conduct Lottery -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fa-solid fa-play me-2"></i>Провести новый розыгрыш</h5>
+                <span class="badge bg-secondary">{{ eligible_count }} участников готово</span>
+            </div>
+            <div class="card-body">
+                {% if eligible_count > 0 %}
+                <form method="POST" action="{{ url_for('admin.run_lottery') }}" id="lotteryForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="winners" class="form-label">Количество победителей</label>
+                            <input type="number" id="winners" name="winners" value="1" min="1" max="{{ eligible_count }}" required class="form-control form-control-lg">
+                            <div class="form-text">Максимум: {{ eligible_count }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Шанс выигрыша</label>
+                            <div class="form-control form-control-lg bg-light" id="winChance"></div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+                        <i class="fa-solid fa-shield-alt fa-2x me-3"></i>
+                        <div>
+                            <strong>Гарантия честности:</strong> Розыгрыш использует криптографически стойкую генерацию случайных чисел с публичной проверкой хеша.
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fa-solid fa-dice me-2"></i>Провести розыгрыш
+                        </button>
+                    </div>
+                </form>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fa-solid fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h4 class="mb-2">Нет подходящих участников</h4>
+                    <p class="text-muted mb-4">Для розыгрыша необходимы одобренные участники, которые еще не выиграли.</p>
+                    <a href="{{ url_for('admin.participants', status='approved') }}" class="btn btn-primary">
+                        <i class="fa-solid fa-users me-2"></i>К участникам
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Fairness Check -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fa-solid fa-shield-alt me-2"></i>Проверка честности</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="d-flex mb-2"><i class="fa-solid fa-check text-success mt-1 me-2"></i><span><strong>Крипто-безопасность:</strong> Генерация семени на основе SHA-256.</span></li>
+                    <li class="d-flex mb-2"><i class="fa-solid fa-check text-success mt-1 me-2"></i><span><strong>Публичная проверка:</strong> Хеш позволяет проверить результаты.</span></li>
+                    <li class="d-flex"><i class="fa-solid fa-check text-success mt-1 me-2"></i><span><strong>Прозрачность:</strong> Полный аудиторский след всех розыгрышей.</span></li>
+                </ul>
+            </div>
+            <div class="card-footer bg-transparent border-top-0 pb-3">
+                 <button class="btn btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#verificationModal">
+                    <i class="fa-solid fa-question-circle me-2"></i>Как проверить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Winners -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fa-solid fa-trophy me-2"></i>Последние победители</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if winners %}
+        <div class="table-responsive">
+            <table class="table table-hover table-borderless mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Победитель</th>
+                        <th scope="col">Телефон</th>
+                        <th scope="col">Дата</th>
+                        <th scope="col">№ Розыгрыша</th>
+                        <th scope="col">Хеш семени</th>
+                        <th scope="col" class="text-end pe-3">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for winner in winners[-10:]|reverse %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold">{{ winner.full_name }}</div>
+                            <div class="text-muted small">@{{ winner.username or '-' }}</div>
+                        </td>
+                        <td class="text-muted">{{ winner.phone_number }}</td>
+                        <td class="text-muted small">{{ winner.draw_date if winner.draw_date else 'N/A' }}</td>
+                        <td><span class="badge bg-secondary">{{ winner.draw_number }}</span></td>
+                        <td><code class="small">{{ winner.seed_hash[:16] }}...</code></td>
+                        <td class="text-end pe-3">
+                            <a href="{{ url_for('admin.winner_detail', winner_id=winner.id) }}" class="btn btn-sm btn-outline-secondary" title="Подробности"><i class="fa-solid fa-eye"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center p-5">
+            <i class="fa-solid fa-trophy fa-3x text-light-emphasis"></i>
+            <h5 class="mt-3">Пока нет победителей</h5>
+            <p class="text-muted">Проведите первый розыгрыш, чтобы определить победителей.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Verification Modal -->
+<div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="verificationModalLabel"><i class="fa-solid fa-shield-alt me-2"></i>Проверка честности</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Шаги для проверки:</h6>
+                <ol class="list-group list-group-numbered mb-4">
+                    <li class="list-group-item"><strong>Получите семя:</strong> Секретное семя раскрывается после розыгрыша.</li>
+                    <li class="list-group-item"><strong>Проверьте хеш:</strong> Убедитесь, что SHA-256(семя) равно опубликованному хешу.</li>
+                    <li class="list-group-item"><strong>Воспроизведите результаты:</strong> Используйте тот же алгоритм с семенем.</li>
+                    <li class="list-group-item"><strong>Сравните победителей:</strong> Ваши рассчитанные победители должны совпадать с опубликованными.</li>
+                </ol>
+                <h6>Алгоритм:</h6>
+                <pre class="bg-light p-3 rounded"><code>1. Генерация крипто-семени
+2. SHA-256(семя) -> хеш (публикуется)
+3. Для каждого победителя:
+   SHA-256(семя + индекс) -> выбор</code></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const numWinnersInput = document.getElementById('winners');
+    const winChanceDiv = document.getElementById('winChance');
+    const eligibleCount = parseInt("{{ eligible_count }}", 10) || 0;
+
+    function updateWinChance() {
+        if (!numWinnersInput || !winChanceDiv) return;
+        
+        const numWinners = parseInt(numWinnersInput.value, 10);
+        if (isNaN(numWinners) || numWinners <= 0 || eligibleCount <= 0) {
+            winChanceDiv.innerHTML = '-';
+            return;
+        }
+
+        const chance = (numWinners / eligibleCount) * 100;
+        
+        winChanceDiv.innerHTML = `<strong>${chance.toFixed(2)}%</strong>`;
+    }
+
+    if (numWinnersInput) {
+        numWinnersInput.addEventListener('input', updateWinChance);
+        updateWinChance(); // Initial calculation
+    }
+
+    const lotteryForm = document.getElementById('lotteryForm');
+    if (lotteryForm) {
+        lotteryForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const numWinners = parseInt(document.getElementById('winners').value, 10);
+
+            const confirmationModal = document.getElementById('confirmationModal');
+            if (confirmationModal) {
+                confirmationModal.querySelector('.modal-title').textContent = 'Подтверждение розыгрыша';
+                confirmationModal.querySelector('.modal-body-content').innerHTML = `Вы уверены, что хотите провести розыгрыш с <strong>${numWinners}</strong> победителями?`;
+                
+                const confirmForm = confirmationModal.querySelector('#confirmActionForm');
+                confirmForm.action = lotteryForm.action;
+                
+                confirmForm.onsubmit = function(submitEvent) {
+                    submitEvent.preventDefault();
+                    lotteryForm.submit();
+                };
+
+                new bootstrap.Modal(confirmationModal).show();
+            } else {
+                lotteryForm.submit(); // Fallback if modal isn't present
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в админ-панель</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: var(--body-bg);
+        }
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="card p-4">
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <h1 class="h3 mb-1 fw-bold">Панель управления</h1>
+                    <p class="text-muted">Вход для авторизованных администраторов</p>
+                </div>
+        
+                <form action="" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <div class="form-floating mb-3">
+                        <input type="text" class="form-control" id="username" name="username" placeholder="Имя пользователя" required>
+                        <label for="username">Имя пользователя</label>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Пароль" required>
+                        <label for="password">Пароль</label>
+                    </div>
+        
+                    <button class="w-100 btn btn-lg btn-primary" type="submit">
+                        <i class="fa-solid fa-sign-in-alt me-2"></i>Войти
+                    </button>
+                </form>
+        
+                <div class="text-center mt-4">
+                    <small class="text-muted">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        Защищенная система администрирования
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash messages data -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <script type="application/json" id="flash-messages-data">
+    [
+        {% for category, message in messages %}
+        {
+            "type": "{% if category == 'message' %}info{% else %}{{ category }}{% endif %}",
+            "message": {{ message|tojson }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+    </script>
+    {% endif %}
+    {% endwith %}
+
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+    <script>
+        const notyf = new Notyf({
+            duration: 5000,
+            position: {
+                x: 'right',
+                y: 'top',
+            },
+            types: [
+                {
+                    type: 'info',
+                    background: 'var(--bs-primary)',
+                    icon: false
+                },
+                {
+                    type: 'warning',
+                    background: 'var(--bs-warning)',
+                    icon: false
+                },
+                {
+                    type: 'success',
+                    background: 'var(--bs-success)',
+                    icon: false
+                },
+                {
+                    type: 'error',
+                    background: 'var(--bs-danger)',
+                    icon: false
+                }
+            ]
+        });
+
+        // Flash messages handling
+        document.addEventListener('DOMContentLoaded', function() {
+            var flashMessagesElement = document.getElementById('flash-messages-data');
+            if (flashMessagesElement) {
+                var flashMessages = JSON.parse(flashMessagesElement.textContent);
+                flashMessages.forEach(function(flash) {
+                    notyf.open({ type: flash.type, message: flash.message });
+                });
+            }
+        });
+    </script>
+</body>
+</html>

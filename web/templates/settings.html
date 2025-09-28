@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Настройки</h1>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="fa-solid fa-gears me-2"></i>Конфигурация (read-only)
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Bot token</dt>
+                    <dd class="col-sm-8">{% if config.BOT_TOKEN_SET %}<span class="badge badge-light-success">Установлен</span>{% else %}<span class="badge badge-light-danger">Не установлен</span>{% endif %}</dd>
+
+                    <dt class="col-sm-4">Admin IDs</dt>
+                    <dd class="col-sm-8">{{ (config.ADMIN_IDS or []) | join(', ') if config.ADMIN_IDS else '-' }}</dd>
+
+                    <dt class="col-sm-4">База данных</dt>
+                    <dd class="col-sm-8"><code>{{ config.DATABASE_PATH }}</code></dd>
+
+                    <dt class="col-sm-4">Web</dt>
+                    <dd class="col-sm-8"><code>{{ config.WEB_HOST }}:{{ config.WEB_PORT }}</code></dd>
+
+                    <dt class="col-sm-4">Папки</dt>
+                    <dd class="col-sm-8">
+                        <div><strong>Uploads:</strong> <code>{{ config.UPLOAD_FOLDER }}</code></div>
+                        <div><strong>Exports:</strong> <code>{{ config.EXPORT_FOLDER }}</code></div>
+                        <div><strong>Logs:</strong> <code>{{ config.LOG_FOLDER }}</code></div>
+                    </dd>
+
+                    <dt class="col-sm-4">Лимиты</dt>
+                    <dd class="col-sm-8">Макс. участников: {{ "{:,}".format(config.MAX_PARTICIPANTS) }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

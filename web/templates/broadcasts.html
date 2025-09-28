@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}Управление рассылками{% endblock %}
+
+{% block content %}
+<div x-data="broadcasts()">
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2">Управление рассылками</h1>
+        <p class="text-muted">Создание и мониторинг массовых сообщений</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEditModal" @click="resetForm()">
+        <i class="fa-solid fa-plus me-2"></i>Создать рассылку
+    </button>
+ </div>
+
+<!-- Stats -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <p class="card-text text-muted mb-1">Всего рассылок</p>
+                <h4 class="card-title mb-0">{{ broadcasts|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <p class="card-text text-muted mb-1">Отправлено</p>
+                <h4 class="card-title mb-0">{{ broadcasts|selectattr('status', 'equalto', 'completed')|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <p class="card-text text-muted mb-1">В процессе</p>
+                <h4 class="card-title mb-0">{{ broadcasts|selectattr('status', 'equalto', 'sending')|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <p class="card-text text-muted mb-1">Черновики</p>
+                <h4 class="card-title mb-0">{{ broadcasts|selectattr('status', 'equalto', 'draft')|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Broadcast List -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fa-solid fa-list me-2"></i>Список рассылок</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if broadcasts %}
+        <div class="table-responsive">
+            <table class="table table-hover table-borderless mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Название</th>
+                        <th scope="col" class="text-center">Прогресс</th>
+                        <th scope="col">Аудитория</th>
+                        <th scope="col">Статус</th>
+                        <th scope="col">Дата</th>
+                        <th scope="col" class="text-center">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set audience_classes = {
+                        'all': 'bg-primary',
+                        'approved': 'bg-success',
+                        'pending': 'bg-warning',
+                        'rejected': 'bg-danger',
+                        'winners': 'bg-info'
+                    } %}
+                    {% for broadcast in broadcasts %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold">{{ broadcast.media_caption or 'Рассылка' }}</div>
+                            {% set message_preview = broadcast.message_text or '' %}
+                            <p class="text-muted small mb-0">{{ message_preview[:50] }}{% if message_preview|length > 50 %}...{% endif %}</p>
+                        </td>
+                        <td class="text-center">
+                            {% set progress = ((broadcast.sent_count or 0) / (broadcast.total_recipients or 1) * 100)|round %}
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar" role="progressbar" style="width: {{ progress }}%;" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div class="small text-muted mt-1">{{ progress }}% ({{ broadcast.sent_count or 0 }}/{{ broadcast.total_recipients or 0 }})</div>
+                        </td>
+                        <td>
+                            {% set audience_class = audience_classes.get(broadcast.media_type, 'bg-primary') %}
+                            <span class="badge {{ audience_class }}">{{ broadcast.media_type or 'all' }}</span>
+                        </td>
+                        <td>
+                             {% set status_config = {
+                                'completed': ('badge-light-success', 'fa-check-circle'),
+                                'sending': ('badge-light-warning', 'fa-paper-plane'),
+                                'draft': ('badge-light-secondary', 'fa-pencil-alt'),
+                                'failed': ('badge-light-danger', 'fa-exclamation-circle')
+                            }.get(broadcast.status, ('badge-light-secondary', 'fa-question-circle')) %}
+                            <span class="badge {{ status_config[0] }}"><i class="fa-solid {{ status_config[1] }} me-1"></i>{{ broadcast.status }}</span>
+                        </td>
+                        <td class="text-muted small">{{ broadcast.created_at if broadcast.created_at else 'N/A' }}</td>
+                        <td class="text-center">
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-secondary" @click="viewBroadcast('{{ broadcast.id }}')" title="Посмотреть"><i class="fa-solid fa-eye"></i></button>
+                                {% if broadcast.status == 'draft' %}
+                                <button class="btn btn-sm btn-outline-secondary" @click="editBroadcast('{{ broadcast.id }}')" title="Редактировать"><i class="fa-solid fa-edit"></i></button>
+                                <button class="btn btn-sm btn-outline-success" 
+                                         data-bs-toggle="modal"
+                                         data-bs-target="#confirmationModal"
+                                         data-bs-title="Отправить рассылку?"
+                                         data-bs-body="Вы уверены, что хотите отправить эту рассылку?"
+                                         data-bs-action="{{ url_for('admin.send_broadcast', broadcast_id=broadcast.id) }}"
+                                         title="Отправить">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
+                                {% endif %}
+                                {% if broadcast.status in ['completed', 'draft', 'failed'] %}
+                                <button class="btn btn-sm btn-outline-danger"
+                                         data-bs-toggle="modal"
+                                         data-bs-target="#confirmationModal"
+                                         data-bs-title="Удалить рассылку?"
+                                         data-bs-body="Вы уверены? Это действие нельзя отменить."
+                                         data-bs-action="{{ url_for('admin.delete_broadcast', broadcast_id=broadcast.id) }}"
+                                         title="Удалить">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center p-5">
+            <i class="fa-solid fa-bullhorn fa-3x text-light-emphasis"></i>
+            <h5 class="mt-3">Пока нет рассылок</h5>
+            <p class="text-muted">Создайте первую рассылку для общения с участниками.</p>
+            <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#createEditModal" @click="resetForm()">
+                <i class="fa-solid fa-plus me-2"></i>Создать рассылку
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Create/Edit Modal -->
+<div class="modal fade" id="createEditModal" tabindex="-1" aria-labelledby="createEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <form :action="formAction" method="POST" @submit.prevent="submitForm" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createEditModalLabel" x-text="isEditMode ? 'Редактировать рассылку' : 'Создать новую рассылку'"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Название</label>
+                        <input type="text" id="title" name="title" x-model="form.title" class="form-control" placeholder="Например: Объявление результатов" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="target_audience" class="form-label">Целевая аудитория</label>
+                            <select id="target_audience" name="target_audience" x-model="form.target_audience" class="form-select" required>
+                                <option value="all">Все участники</option>
+                                <option value="approved">Только одобренные</option>
+                                <option value="pending">На рассмотрении</option>
+                                <option value="rejected">Отклоненные</option>
+                                <option value="winners">Только победители</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="message_text" class="form-label">Сообщение</label>
+                        <textarea id="message_text" name="message_text" x-model="form.message_text" rows="6" class="form-control" placeholder="Напишите сообщение для участников... Поддерживается Markdown." required></textarea>
+                    </div>
+                    
+                    <!-- Media upload -->
+                    <div class="mb-3">
+                        <label class="form-label">Медиа-контент (опционально)</label>
+                        <div class="card p-3 bg-light border">
+                            <div class="mb-2">
+                                <label for="media_file" class="form-label">Выберите файл</label>
+                                <input type="file" class="form-control" id="media_file" name="media_file" accept="image/*,video/*">
+                                <div class="form-text">Поддерживаются изображения и видео.</div>
+                            </div>
+                            <div>
+                                <label for="media_caption" class="form-label">Подпись к медиа</label>
+                                <input type="text" class="form-control" id="media_caption" name="media_caption" placeholder="Если не указано, будет использован текст сообщения">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="form-label">Шаблоны сообщений</label>
+                        <div class="row g-2">
+                            <div class="col-6"><button type="button" @click="useTemplate('🎉 Поздравляем! Результаты розыгрыша опубликованы!')" class="btn btn-outline-secondary w-100 text-start">🎉 Объявление победителей</button></div>
+                            <div class="col-6"><button type="button" @click="useTemplate('📝 Новые правила участия в розыгрыше. Ознакомьтесь!')" class="btn btn-outline-secondary w-100 text-start">📝 Обновление правил</button></div>
+                            <div class="col-6"><button type="button" @click="useTemplate('✨ Новый розыгрыш начинается! Принимаем заявки.')" class="btn btn-outline-secondary w-100 text-start">✨ Новый розыгрыш</button></div>
+                            <div class="col-6"><button type="button" @click="useTemplate('📞 Если у вас есть вопросы, обращайтесь в техподдержку.')" class="btn btn-outline-secondary w-100 text-start">📞 Техподдержка</button></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary" x-text="isEditMode ? 'Сохранить изменения' : 'Создать рассылку'"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- View Modal -->
+<div class="modal fade" id="viewModal" tabindex="-1" aria-labelledby="viewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewModalLabel">Подробности рассылки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" x-data="{ viewData: {} }" id="viewModalBody">
+                <template x-if="viewData && viewData.title">
+                    <div>
+                        <dl class="row">
+                            <dt class="col-sm-3">Название</dt>
+                            <dd class="col-sm-9" x-text="viewData.title"></dd>
+                            
+                            <dt class="col-sm-3">Аудитория</dt>
+                            <dd class="col-sm-9"><span class="badge" :class="audienceClass(viewData.target_audience)" x-text="viewData.target_audience"></span></dd>
+                            
+                            <dt class="col-sm-3">Статус</dt>
+                            <dd class="col-sm-9"><span class="badge" :class="statusClass(viewData.status)" x-text="viewData.status || 'N/A'"></span></dd>
+                            
+                            <dt class="col-sm-3">Создана</dt>
+                            <dd class="col-sm-9" x-text="(viewData.created_at && (new Date(viewData.created_at)).toLocaleString()) || 'N/A'"></dd>
+                        </dl>
+                        
+                        <h6 class="mt-4">Сообщение:</h6>
+                        <div class="p-3 bg-light rounded border" style="white-space: pre-wrap;" x-text="viewData.message_text || '—'"></div>
+                        
+                        <div class="row text-center g-3 pt-4 border-top mt-4">
+                            <div class="col-4">
+                                <h6>Получателей</h6>
+                                <p class="h4" x-text="viewData.total_recipients || 0"></p>
+                            </div>
+                            <div class="col-4">
+                                <h6 class="text-success">Отправлено</h6>
+                                <p class="h4 text-success" x-text="viewData.sent_count || 0"></p>
+                            </div>
+                            <div class="col-4">
+                                <h6 class="text-danger">Ошибок</h6>
+                                <p class="h4 text-danger" x-text="viewData.failed_count || 0"></p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="!viewData || !viewData.title">
+                    <div class="text-center text-muted p-5">Загрузка данных...</div>
+                </template>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('broadcasts', () => ({
+        isEditMode: false,
+        broadcastId: null,
+        form: {
+            title: '',
+            target_audience: 'all',
+            message_text: ''
+        },
+        createModal: null,
+        viewModal: null,
+
+        init() {
+            this.createModal = new bootstrap.Modal(document.getElementById('createEditModal'));
+            this.viewModal = new bootstrap.Modal(document.getElementById('viewModal'));
+        },
+
+        audienceClass(target) {
+            const mapping = {
+                'all': 'bg-primary', 'approved': 'bg-success', 'pending': 'bg-warning',
+                'rejected': 'bg-danger', 'winners': 'bg-info'
+            };
+            return mapping[target] || 'bg-secondary';
+        },
+
+        statusClass(status) {
+            const mapping = {
+                'completed': 'badge-light-success', 'sending': 'badge-light-warning',
+                'draft': 'badge-light-secondary', 'failed': 'badge-light-danger'
+            };
+            return mapping[status] || 'badge-light-secondary';
+        },
+
+        get formAction() {
+            return this.isEditMode ? `/admin/broadcasts/${this.broadcastId}/edit` : '{{ url_for("admin.create_broadcast") }}';
+        },
+
+        resetForm() {
+            this.isEditMode = false;
+            this.broadcastId = null;
+            this.form.title = '';
+            this.form.target_audience = 'all';
+            this.form.message_text = '';
+            // Also reset file input if needed
+            document.getElementById('media_file').value = '';
+            document.getElementById('media_caption').value = '';
+        },
+
+        useTemplate(text) {
+            this.form.message_text = text;
+        },
+
+        async editBroadcast(id) {
+            try {
+                const response = await fetch(`/api/broadcast/${id}`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+                this.isEditMode = true;
+                this.broadcastId = id;
+                this.form.title = data.title;
+                this.form.target_audience = data.target_audience;
+                this.form.message_text = data.message_text;
+                this.createModal.show();
+            } catch (error) {
+                console.error('Fetch error:', error);
+                notyf.error('Не удалось загрузить данные рассылки.');
+            }
+        },
+
+        async viewBroadcast(id) {
+            const viewModalBody = document.getElementById('viewModalBody');
+            if (viewModalBody && viewModalBody.__x) {
+                viewModalBody.__x.$data.viewData = {}; // Clear previous data
+            }
+            this.viewModal.show();
+            try {
+                const response = await fetch(`/api/broadcast/${id}`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const data = await response.json();
+                if (viewModalBody && viewModalBody.__x) {
+                    viewModalBody.__x.$data.viewData = data;
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                notyf.error('Не удалось загрузить детали рассылки.');
+            }
+        },
+
+        async submitForm(e) {
+            const form = e.target;
+            const formData = new FormData(form);
+            
+            try {
+                const response = await fetch(this.formAction, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    this.createModal.hide();
+                    notyf.success(result.message || 'Рассылка успешно сохранена!');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    throw new Error(result.message || 'Произошла ошибка.');
+                }
+            } catch (error) {
+                notyf.error(error.message);
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}

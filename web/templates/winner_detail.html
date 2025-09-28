@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Победитель {{ participant.full_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h2">Победитель розыгрыша</h1>
+        <p class="text-muted">Детальная информация о победителе</p>
+    </div>
+    <a href="{{ url_for('admin.lottery') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fa-solid fa-arrow-left me-2"></i>Назад к розыгрышу
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="d-flex flex-column gap-4">
+            <div class="card">
+                <div class="card-header"><i class="fa-solid fa-user-circle me-2"></i>Информация об участнике</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Имя</dt>
+                        <dd class="col-sm-8">{{ participant.full_name }}</dd>
+                        <dt class="col-sm-4">Телефон</dt>
+                        <dd class="col-sm-8">{{ participant.phone_number }}</dd>
+                        <dt class="col-sm-4">Telegram</dt>
+                        <dd class="col-sm-8">{% if participant.username %}@{{ participant.username }}{% else %}-{% endif %} <span class="text-muted small">(ID: {{ participant.telegram_id }})</span></dd>
+                        <dt class="col-sm-4">Карта лояльности</dt>
+                        <dd class="col-sm-8">{{ participant.loyalty_card }}</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><i class="fa-solid fa-trophy me-2"></i>Информация о розыгрыше</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Дата розыгрыша</dt>
+                        <dd class="col-sm-8">{{ winner.draw_date if winner.draw_date else 'N/A' }}</dd>
+                        <dt class="col-sm-4">Номер розыгрыша</dt>
+                        <dd class="col-sm-8"><span class="badge bg-secondary">{{ winner.draw_number }}</span></dd>
+                        <dt class="col-sm-4">Хеш семени</dt>
+                        <dd class="col-sm-8"><code>{{ winner.seed_hash }}</code></dd>
+                        <dt class="col-sm-4">Действительность</dt>
+                        <dd class="col-sm-8">{% if winner.is_valid %}<span class="badge badge-light-success">Действителен</span>{% else %}<span class="badge badge-light-danger">Недействителен</span>{% endif %}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><i class="fa-solid fa-cogs me-2"></i>Действия</div>
+            <div class="card-body d-grid gap-2">
+                <a href="{{ url_for('admin.participant_detail', participant_id=participant.id) }}" class="btn btn-outline-secondary">
+                    <i class="fa-solid fa-user me-2"></i>Карточка участника
+                </a>
+                <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#rerollModal-{{ winner.id }}">
+                    <i class="fa-solid fa-redo me-2"></i>Перерозыгрыш
+                </button>
+                <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteWinnerModal-{{ winner.id }}">
+                    <i class="fa-solid fa-trash me-2"></i>Удалить победителя
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Reroll Modal -->
+<div class="modal fade" id="rerollModal-{{ winner.id }}" tabindex="-1" aria-labelledby="rerollModalLabel-{{ winner.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin.reroll_winner', winner_id=winner.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="rerollModalLabel-{{ winner.id }}">Перерозыгрыш победителя</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Вы уверены, что хотите провести перерозыгрыш для <strong>{{ participant.full_name }}</strong> (Розыгрыш №{{ winner.draw_number }})?</p>
+                    <div class="mb-3">
+                        <label for="reroll_reason_{{ winner.id }}" class="form-label">Причина</label>
+                        <input type="text" name="reason" id="reroll_reason_{{ winner.id }}" required class="form-control" placeholder="Например: Участник не отвечает">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-warning">Перерозыгрыш</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Winner Modal -->
+<div class="modal fade" id="deleteWinnerModal-{{ winner.id }}" tabindex="-1" aria-labelledby="deleteWinnerModalLabel-{{ winner.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin.delete_winner', winner_id=winner.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteWinnerModalLabel-{{ winner.id }}">Удалить победителя</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Вы уверены, что хотите удалить победителя <strong>{{ participant.full_name }}</strong>? Это действие необратимо.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger">Удалить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
