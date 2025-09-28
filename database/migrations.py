@@ -155,6 +155,14 @@ async def run_migrations(pool: OptimizedSQLitePool) -> None:
             except Exception:
                 # Column already exists, ignore the error
                 pass
+            
+            # Add media columns to broadcast_jobs if they don't exist
+            for column in ["media_path TEXT", "media_type TEXT", "media_caption TEXT"]:
+                try:
+                    await conn.execute(f"ALTER TABLE broadcast_jobs ADD COLUMN {column}")
+                except Exception:
+                    # Column already exists, ignore the error
+                    pass
                 
         except Exception:
             await conn.rollback()

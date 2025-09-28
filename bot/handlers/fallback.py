@@ -9,7 +9,7 @@ from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from bot.context_manager import context_manager, UserContext, UserAction
+from bot.context_manager import get_context_manager, UserContext, UserAction
 from bot.keyboards import (
     get_main_menu_keyboard_for_user,
     get_support_menu_keyboard,
@@ -79,14 +79,23 @@ class SmartFallbackHandler:
     async def handle_unexpected_text(self, message: types.Message, state: FSMContext):
         """Обработчик неожиданных текстовых сообщений"""
         
-        await context_manager.update_context(
-            message.from_user.id, 
-            UserContext.CONFUSED, 
-            UserAction.TEXT_INPUT
-        )
+        from bot.context_manager import get_context_manager
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id, 
+                UserContext.CONFUSED, 
+                UserAction.TEXT_INPUT
+            )
         
         # Проверяем, запутался ли пользователь
-        is_confused = await context_manager.detect_user_confusion(message.from_user.id, message, state)
+        is_confused = False
+        context_manager = get_context_manager()
+        if context_manager:
+            try:
+                is_confused = await context_manager.detect_user_confusion(message.from_user.id, message, state)
+            except Exception:
+                is_confused = False
         
         if is_confused:
             await self._handle_confused_user(message, state)
@@ -221,7 +230,14 @@ class SmartFallbackHandler:
     async def _provide_contextual_help(self, message: types.Message, state: FSMContext, is_media_error: bool = False):
         """Предоставление контекстной помощи"""
         
-        suggestion = await context_manager.get_smart_suggestion(message.from_user.id, message, state)
+        suggestion = None
+        context_manager = get_context_manager()
+        if context_manager:
+            try:
+                suggestion = await context_manager.get_smart_suggestion(message.from_user.id, message, state)
+            except (AttributeError, Exception):
+                # Метод get_smart_suggestion недоступен или ошибка, используем fallback
+                suggestion = None
         
         if suggestion:
             # Строим сообщение с подсказкой

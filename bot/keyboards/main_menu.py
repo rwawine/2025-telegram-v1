@@ -13,8 +13,8 @@ def get_main_menu_keyboard(user_status: str = None) -> ReplyKeyboardMarkup:
         keyboard.append([KeyboardButton(text="🚀 Начать регистрацию")])
     
     keyboard.extend([
-        [KeyboardButton(text="📋 Мой статус"), KeyboardButton(text="❓ Помощь")],
-        [KeyboardButton(text="💬 Техподдержка"), KeyboardButton(text="📊 О розыгрыше")]
+        [KeyboardButton(text="✅ Мой статус"), KeyboardButton(text="💬 Помощь")],
+        [KeyboardButton(text="📊 О розыгрыше")]
     ])
     
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)

@@ -318,6 +318,10 @@ def broadcasts():
     status = request.args.get("status")
     db = _get_admin_db()
     queue, total = db.list_broadcasts(status=status, page=page, per_page=per_page)
+    
+    # Convert sqlite3.Row objects to dictionaries for easier access
+    queue = [dict(b) if hasattr(b, 'keys') else b for b in queue]
+    
     # Derive analytics breakdowns
     by_status = {
         'completed': len([b for b in queue if b['status'] == 'completed']),
@@ -369,6 +373,10 @@ def export_winners():
     db = _get_admin_db()
     run_id = request.args.get("run_id", type=int)
     winners = db.list_winners(run_id=run_id, limit=100000)
+    
+    # Convert sqlite3.Row objects to dictionaries for easier access
+    winners = [dict(w) if hasattr(w, 'keys') else w for w in winners]
+    
     si = StringIO()
     writer = csv.writer(si)
     writer.writerow(["winner_id", "run_id", "participant_id", "full_name", "username", "phone_number", "position", "draw_number", "draw_date", "seed_hash"])
@@ -520,9 +528,11 @@ def analytics():
     broadcasts, _ = db.list_broadcasts(page=1, per_page=1000000)
     audience_breakdown = {}
     for b in broadcasts:
-        aud = (b.get("media_type") or "all")
-        succ = int(b.get("sent_count") or 0)
-        fail = int(b.get("failed_count") or 0)
+        # Convert sqlite3.Row to dict for easier access
+        b_dict = dict(b) if hasattr(b, 'keys') else b
+        aud = (b_dict.get("media_type") or "all")
+        succ = int(b_dict.get("sent_count") or 0)
+        fail = int(b_dict.get("failed_count") or 0)
         agg = audience_breakdown.setdefault(aud, {"success": 0, "failed": 0})
         agg["success"] += succ
         agg["failed"] += fail
@@ -834,6 +844,8 @@ def reroll_winner(winner_id: int):
     db = _get_admin_db()
     # Get the winner to reroll
     winners = db.list_winners(limit=1000)
+    # Convert sqlite3.Row objects to dictionaries for easier access
+    winners = [dict(w) if hasattr(w, 'keys') else w for w in winners]
     target = next((w for w in winners if w["id"] == winner_id), None)
     if not target:
         flash("Победитель не найден", "error")
@@ -918,6 +930,8 @@ def send_broadcast(broadcast_id: int):
     
     # Get broadcast details
     broadcasts, _ = db.list_broadcasts(page=1, per_page=1000)
+    # Convert sqlite3.Row objects to dictionaries for easier access
+    broadcasts = [dict(b) if hasattr(b, 'keys') else b for b in broadcasts]
     broadcast = next((b for b in broadcasts if b["id"] == broadcast_id), None)
     
     if not broadcast:
@@ -989,6 +1003,8 @@ def get_broadcast_api(broadcast_id: int):
     db = _get_admin_db()
     
     broadcasts, _ = db.list_broadcasts(page=1, per_page=1000)
+    # Convert sqlite3.Row objects to dictionaries for easier access
+    broadcasts = [dict(b) if hasattr(b, 'keys') else b for b in broadcasts]
     broadcast = next((b for b in broadcasts if b["id"] == broadcast_id), None)
     
     if not broadcast:

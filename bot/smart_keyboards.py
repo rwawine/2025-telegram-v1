@@ -141,8 +141,8 @@ class AdaptiveKeyboards:
         elif user_status == "approved":
             # Одобренный участник
             keyboard.extend([
-                [KeyboardButton(text="✅ Мой статус"), KeyboardButton(text="🏆 Результаты")],
-                [KeyboardButton(text="📊 О розыгрыше"), KeyboardButton(text="❓ Помощь")]
+                [KeyboardButton(text="✅ Мой статус"), KeyboardButton(text="💬 Помощь")],
+                [KeyboardButton(text="📊 О розыгрыше")]
             ])
         elif user_status == "rejected":
             # Отклоненная заявка

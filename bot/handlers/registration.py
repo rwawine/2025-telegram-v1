@@ -240,11 +240,14 @@ class RegistrationHandler:
         )
 
     async def handle_status(self, message: types.Message) -> None:
-        await context_manager.update_context(
-            message.from_user.id,
-            UserContext.NAVIGATION,
-            UserAction.BUTTON_CLICK
-        )
+        from bot.context_manager import get_context_manager, UserContext, UserAction
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id,
+                UserContext.NAVIGATION,
+                UserAction.BUTTON_CLICK
+            )
         
         async def loader():
             return await get_participant_status(message.from_user.id)

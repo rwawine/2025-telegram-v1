@@ -76,7 +76,7 @@
                     <div class="info-block">
                         <h6 class="text-muted mb-1">Последний бэкап</h6>
                         <div class="fw-medium">
-                            {{ backup_info.latest_backup | regex_replace('T', ' ') | regex_replace('\\..*$', '') }}
+                            {{ backup_info.latest_backup.replace('T', ' ').split('.')[0] if backup_info.latest_backup and 'T' in backup_info.latest_backup else backup_info.latest_backup }}
                         </div>
                     </div>
                 </div>
@@ -84,7 +84,7 @@
                     <div class="info-block">
                         <h6 class="text-muted mb-1">Самый старый бэкап</h6>
                         <div class="fw-medium">
-                            {{ backup_info.oldest_backup | regex_replace('T', ' ') | regex_replace('\\..*$', '') }}
+                            {{ backup_info.oldest_backup.replace('T', ' ').split('.')[0] if backup_info.oldest_backup and 'T' in backup_info.oldest_backup else backup_info.oldest_backup }}
                         </div>
                     </div>
                 </div>
@@ -143,7 +143,7 @@
                         </td>
                         <td>
                             <div class="text-nowrap">
-                                {{ backup.created | regex_replace('T', ' ') | regex_replace('\\..*$', '') }}
+                                {{ backup.created.replace('T', ' ').split('.')[0] if 'T' in backup.created else backup.created }}
                             </div>
                         </td>
                         <td>

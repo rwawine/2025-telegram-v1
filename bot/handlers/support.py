@@ -50,20 +50,27 @@ class SupportHandler:
 
         # Compose ticket
         # Draft message and actions within composing state
+        # Navigation buttons that should exit support state (ВЫСШИЙ ПРИОРИТЕТ)
+        self.router.message.register(self.exit_to_main_menu, SupportStates.entering_message, F.text.in_(["🏠 Главное меню", "✅ Мой статус", "💬 Помощь", "📊 О розыгрыше"]))
+        # Ticket actions
         self.router.message.register(self.handle_send_ticket, SupportStates.entering_message, F.text == "✅ Отправить обращение")
         self.router.message.register(self.handle_change_category, SupportStates.entering_message, F.text == "⬅️ Изменить категорию")
-        self.router.message.register(self.back_to_menu, F.text == "🏠 Главное меню")
         self.router.message.register(self.handle_attach_photo, SupportStates.entering_message, F.text == "📷 Прикрепить фото")
         self.router.message.register(self.handle_attach_document, SupportStates.entering_message, F.text == "📄 Прикрепить документ")
-        # Any other text becomes the draft body
+        # General navigation (for any state)
+        self.router.message.register(self.back_to_menu, F.text == "🏠 Главное меню")
+        # Any other text becomes the draft body (САМЫЙ НИЗКИЙ ПРИОРИТЕТ)
         self.router.message.register(self.receive_ticket_message, SupportStates.entering_message)
 
     async def open_support_menu(self, message: types.Message) -> None:
-        await context_manager.update_context(
-            message.from_user.id,
-            UserContext.SUPPORT,
-            UserAction.BUTTON_CLICK
-        )
+        from bot.context_manager import get_context_manager, UserContext, UserAction
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id,
+                UserContext.SUPPORT,
+                UserAction.BUTTON_CLICK
+            )
         
         support_messages = smart_messages.get_support_messages()
         menu_msg = support_messages["menu"]
@@ -171,7 +178,14 @@ class SupportHandler:
             ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
-        await message.answer("\n".join(lines), reply_markup=keyboard)
+        if hasattr(message, 'bot') and message.bot:
+            await message.bot.send_message(
+                chat_id=message.chat.id,
+                text="\n".join(lines),
+                reply_markup=keyboard
+            )
+        else:
+            await message.answer("\n".join(lines), reply_markup=keyboard)
 
     async def handle_attach_photo(self, message: types.Message, state: FSMContext) -> None:
         await message.answer(
@@ -241,17 +255,31 @@ class SupportHandler:
             row = await cursor.fetchone()
             ticket_id = row[0]
 
-            # Persist attachments as messages records (create messages table if necessary later)
+            # Persist attachments as messages records
             for file_id in photos:
-                await conn.execute(
-                    "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id) VALUES (?, 'user', '', ?)",
-                    (ticket_id, file_id),
-                )
+                try:
+                    await conn.execute(
+                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id, sent_at) VALUES (?, 'user', '', ?, datetime('now'))",
+                        (ticket_id, file_id),
+                    )
+                except Exception as e:
+                    # Fallback if table doesn't have sent_at column
+                    await conn.execute(
+                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id) VALUES (?, 'user', '', ?)",
+                        (ticket_id, file_id),
+                    )
             for file_id in docs:
-                await conn.execute(
-                    "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id) VALUES (?, 'user', '', ?)",
-                    (ticket_id, file_id),
-                )
+                try:
+                    await conn.execute(
+                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id, sent_at) VALUES (?, 'user', '', ?, datetime('now'))",
+                        (ticket_id, file_id),
+                    )
+                except Exception as e:
+                    # Fallback if table doesn't have sent_at column
+                    await conn.execute(
+                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id) VALUES (?, 'user', '', ?)",
+                        (ticket_id, file_id),
+                    )
 
             await conn.commit()
 
@@ -262,6 +290,11 @@ class SupportHandler:
         sent_msg = support_messages["ticket_sent"]
         
         await message.answer(sent_msg["text"], parse_mode="Markdown")
+        
+        # Возвращаем пользователя в главное меню после отправки
+        from bot.keyboards.main_menu import get_main_menu_keyboard_for_user
+        main_keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+        await message.answer("🏠 Главное меню", reply_markup=main_keyboard)
         
         cache = get_cache()
         cache.invalidate(f"status:{message.from_user.id}")
@@ -386,16 +419,173 @@ class SupportHandler:
 
     async def back_to_tickets_list(self, callback: types.CallbackQuery) -> None:
         """Возврат к списку обращений"""
-        # Создаем фиктивное сообщение для переиспользования логики list_my_tickets
-        fake_message = types.Message(
-            message_id=callback.message.message_id,
-            date=callback.message.date,
-            chat=callback.message.chat,
-            from_user=callback.from_user,
-            content_type="text"
-        )
-        await self.list_my_tickets(fake_message)
-        await callback.answer()
+        try:
+            # Создаем фиктивное сообщение с правильным bot instance
+            fake_message = types.Message(
+                message_id=callback.message.message_id,
+                date=callback.message.date,
+                chat=callback.message.chat,
+                from_user=callback.from_user,
+                content_type="text"
+            )
+            fake_message.bot = callback.bot
+            
+            await self.list_my_tickets(fake_message)
+        except Exception as e:
+            # Fallback if something goes wrong
+            await callback.answer("📋 Загружаем список обращений...", show_alert=True)
+            await callback.bot.send_message(
+                chat_id=callback.from_user.id,
+                text="📋 Ваши обращения в техподдержку загружаются..."
+            )
+        finally:
+            await callback.answer()
+
+    async def handle_view_ticket(self, callback: types.CallbackQuery) -> None:
+        """Просмотр конкретного тикета техподдержки"""
+        try:
+            # Извлекаем ID тикета из callback data
+            ticket_id = int(callback.data.split("_")[-1])
+            
+            pool = get_db_pool()
+            async with pool.connection() as conn:
+                # Получаем основную информацию о тикете
+                cursor = await conn.execute(
+                    """
+                    SELECT t.id, t.subject, t.message, t.status, t.created_at,
+                           p.full_name, p.telegram_id
+                    FROM support_tickets t
+                    JOIN participants p ON p.id = t.participant_id
+                    WHERE t.id = ? AND p.telegram_id = ?
+                    """,
+                    (ticket_id, callback.from_user.id),
+                )
+                ticket_row = await cursor.fetchone()
+                
+                if not ticket_row:
+                    await callback.answer("Обращение не найдено или нет доступа", show_alert=True)
+                    return
+                    
+                ticket_id, subject, message, status, created_at, full_name, _ = ticket_row
+
+                # Получаем все дополнительные сообщения и вложения
+                cursor = await conn.execute(
+                    """
+                    SELECT sender_type, message_text, attachment_file_id, sent_at
+                    FROM support_ticket_messages
+                    WHERE ticket_id = ?
+                    ORDER BY sent_at ASC
+                    """,
+                    (ticket_id,),
+                )
+                messages = await cursor.fetchall()
+
+            # Статусы и эмодзи
+            status_emoji = {
+                "open": "🟡",
+                "in_progress": "🔵", 
+                "closed": "🟢",
+            }
+            status_text = {
+                "open": "Открыто",
+                "in_progress": "В работе",
+                "closed": "Закрыто",
+            }
+
+            # Формируем детальное сообщение
+            emoji = status_emoji.get(status, "⚪️")
+            status_display = status_text.get(status, status)
+            
+            # Форматируем дату
+            from datetime import datetime
+            try:
+                if isinstance(created_at, str):
+                    created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    formatted_date = created_date.strftime("%d.%m.%Y %H:%M")
+                else:
+                    formatted_date = str(created_at)
+            except:
+                formatted_date = str(created_at)
+            
+            lines = [
+                f"📋 Обращение #{ticket_id}",
+                f"📌 Тема: {subject}",
+                f"👤 От: {full_name}", 
+                f"📅 Создано: {formatted_date}",
+                f"{emoji} Статус: {status_display}",
+                "",
+                "💬 Ваше сообщение:",
+                message,
+            ]
+
+            # Добавляем дополнительные сообщения и вложения
+            if messages:
+                lines.append("")
+                lines.append("📄 История переписки:")
+                
+                for sender_type, msg_text, attachment_file_id, sent_at in messages:
+                    sender_emoji = "👤" if sender_type == "user" else "🛠️"
+                    sender_name = "Вы" if sender_type == "user" else "Поддержка"
+                    
+                    # Форматируем время сообщения
+                    try:
+                        if isinstance(sent_at, str):
+                            msg_date = datetime.fromisoformat(sent_at.replace('Z', '+00:00'))
+                            msg_time = msg_date.strftime("%d.%m %H:%M")
+                        else:
+                            msg_time = str(sent_at)
+                    except:
+                        msg_time = str(sent_at)
+                    
+                    lines.append(f"{sender_emoji} {sender_name} ({msg_time}):")
+                    
+                    if msg_text:
+                        lines.append(f"   {msg_text}")
+                    
+                    if attachment_file_id:
+                        lines.append(f"   📎 Вложение: {attachment_file_id}")
+                    
+                    lines.append("")
+
+            ticket_text = "\n".join(lines)
+            
+            # Создаем клавиатуру для навигации
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад к списку", callback_data="back_to_tickets_list")],
+                [InlineKeyboardButton(text="💬 Ответить", callback_data=f"reply_ticket_{ticket_id}")]
+            ])
+            
+            await callback.message.edit_text(ticket_text, reply_markup=keyboard)
+            await callback.answer()
+            
+        except Exception as e:
+            await callback.answer("❌ Ошибка при загрузке обращения", show_alert=True)
+
+    async def exit_to_main_menu(self, message: types.Message, state: FSMContext) -> None:
+        """Выход из состояния создания тикета в главное меню"""
+        await state.clear()
+        
+        # Определяем какую функцию вызвать в зависимости от кнопки
+        if "Главное меню" in message.text:
+            from bot.keyboards.main_menu import get_main_menu_keyboard_for_user
+            keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+            await message.answer("🏠 Главное меню", reply_markup=keyboard)
+        elif "статус" in message.text.lower():
+            # Перенаправляем на обработчик статуса
+            from bot.handlers.common import CommonHandlers
+            common = CommonHandlers()
+            await common.status_handler(message)
+        elif "помощь" in message.text.lower():
+            # Перенаправляем на обработчик помощи
+            from bot.handlers.common import CommonHandlers
+            common = CommonHandlers()
+            await common.help_and_support_handler(message)
+        elif "розыгрыш" in message.text.lower():
+            # Перенаправляем на обработчик информации
+            from bot.handlers.common import CommonHandlers
+            common = CommonHandlers()
+            await common.show_info_menu(message)
 
 
 def setup_support_handlers(dispatcher) -> SupportHandler:
