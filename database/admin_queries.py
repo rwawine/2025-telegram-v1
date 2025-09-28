@@ -27,47 +27,59 @@ class AdminDatabase:
         self.db_path = Path(db_path)
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(
+            self.db_path,
+            timeout=30.0,  # 30 second timeout
+            isolation_level=None  # Autocommit mode for better performance
+        )
         conn.row_factory = sqlite3.Row
+        # Apply performance optimizations
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA mmap_size=268435456")  # 256MB mmap
         return conn
 
     def get_statistics(self) -> Dict[str, int]:
+        """Get system statistics with optimized single query."""
         with self._connect() as conn:
-            total = conn.execute("SELECT COUNT(*) FROM participants").fetchone()[0]
-            approved = conn.execute(
-                "SELECT COUNT(*) FROM participants WHERE status='approved'"
-            ).fetchone()[0]
-            pending = conn.execute(
-                "SELECT COUNT(*) FROM participants WHERE status='pending'"
-            ).fetchone()[0]
-            rejected = conn.execute(
-                "SELECT COUNT(*) FROM participants WHERE status='rejected'"
-            ).fetchone()[0]
-            tickets_open = conn.execute(
-                "SELECT COUNT(*) FROM support_tickets WHERE status='open'"
-            ).fetchone()[0]
-            tickets_in_progress = conn.execute(
-                "SELECT COUNT(*) FROM support_tickets WHERE status='in_progress'"
-            ).fetchone()[0]
-            tickets_closed = conn.execute(
-                "SELECT COUNT(*) FROM support_tickets WHERE status='closed'"
-            ).fetchone()[0]
-            failed_broadcasts = conn.execute(
-                "SELECT COUNT(*) FROM broadcast_jobs WHERE status='failed'"
-            ).fetchone()[0]
-            total_winners = conn.execute(
-                "SELECT COUNT(*) FROM winners"
-            ).fetchone()[0]
+            # Single optimized query for participant stats
+            participant_stats = conn.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                FROM participants
+            """).fetchone()
+            
+            # Single query for ticket stats  
+            ticket_stats = conn.execute("""
+                SELECT 
+                    SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_tickets,
+                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_tickets,
+                    SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_tickets
+                FROM support_tickets
+            """).fetchone()
+            
+            # Single query for other stats
+            other_stats = conn.execute("""
+                SELECT 
+                    (SELECT COUNT(*) FROM broadcast_jobs WHERE status='failed') as failed_broadcasts,
+                    (SELECT COUNT(*) FROM winners) as total_winners
+            """).fetchone()
+            
         return {
-            "total_participants": total,
-            "approved_participants": approved,
-            "pending_participants": pending,
-            "rejected_participants": rejected,
-            "open_tickets": tickets_open,
-            "tickets_in_progress": tickets_in_progress,
-            "tickets_closed": tickets_closed,
-            "failed_broadcasts": failed_broadcasts,
-            "total_winners": total_winners,
+            "total_participants": participant_stats["total"] or 0,
+            "approved_participants": participant_stats["approved"] or 0,
+            "pending_participants": participant_stats["pending"] or 0,
+            "rejected_participants": participant_stats["rejected"] or 0,
+            "open_tickets": ticket_stats["open_tickets"] or 0,
+            "tickets_in_progress": ticket_stats["in_progress_tickets"] or 0,
+            "tickets_closed": ticket_stats["closed_tickets"] or 0,
+            "failed_broadcasts": other_stats["failed_broadcasts"] or 0,
+            "total_winners": other_stats["total_winners"] or 0,
         }
 
     def list_participants(

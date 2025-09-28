@@ -88,7 +88,7 @@ def load_config() -> Config:
         debug=_get_bool("DEBUG", False),
         web_host=os.getenv("WEB_HOST", "0.0.0.0"),
         web_port=_get_int("WEB_PORT", 5000),
-        secret_key=os.getenv("SECRET_KEY", "change_me"),
+        secret_key=os.getenv("SECRET_KEY", "production_secret_key_must_be_changed_in_production_environment"),
         database_path=os.getenv("DATABASE_PATH", "data/lottery_bot.sqlite"),
         upload_folder=os.getenv("UPLOAD_FOLDER", "uploads"),
         export_folder=os.getenv("EXPORT_FOLDER", "exports"),

@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Управление бэкапами - Админ панель розыгрышей{% endblock %}
+
+{% block page_title %}Управление бэкапами{% endblock %}
+{% block page_subtitle %}Автоматические и ручные резервные копии данных{% endblock %}
+
+{% block content %}
+
+<!-- Service Status Card -->
+<div class="card mb-6">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="card-title mb-0">Статус сервиса бэкапов</h2>
+        <div class="d-flex gap-2">
+            <form method="POST" action="{{ url_for('admin.create_manual_backup') }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Создать бэкап сейчас
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('admin.cleanup_old_backups') }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-outline-warning">
+                    <i class="fas fa-trash me-1"></i>Очистить старые
+                </button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if backup_info.error %}
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Ошибка службы бэкапов: {{ backup_info.error }}
+            </div>
+        {% else %}
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="metric-card">
+                        <div class="metric-value">
+                            {% if backup_info.running %}
+                                <span class="text-success">
+                                    <i class="fas fa-check-circle me-1"></i>Активен
+                                </span>
+                            {% else %}
+                                <span class="text-danger">
+                                    <i class="fas fa-times-circle me-1"></i>Остановлен
+                                </span>
+                            {% endif %}
+                        </div>
+                        <div class="metric-title">Статус сервиса</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card">
+                        <div class="metric-value">{{ backup_info.backup_count or 0 }}</div>
+                        <div class="metric-title">Всего бэкапов</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card">
+                        <div class="metric-value">{{ backup_info.total_size_mb or 0 }} MB</div>
+                        <div class="metric-title">Общий размер</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card">
+                        <div class="metric-value">{{ backup_info.max_age_days or 2 }} дн.</div>
+                        <div class="metric-title">Хранение</div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if backup_info.latest_backup %}
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="info-block">
+                        <h6 class="text-muted mb-1">Последний бэкап</h6>
+                        <div class="fw-medium">
+                            {{ backup_info.latest_backup | regex_replace('T', ' ') | regex_replace('\\..*$', '') }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="info-block">
+                        <h6 class="text-muted mb-1">Самый старый бэкап</h6>
+                        <div class="fw-medium">
+                            {{ backup_info.oldest_backup | regex_replace('T', ' ') | regex_replace('\\..*$', '') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Backup Files List -->
+{% if backup_info.backup_files %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Файлы бэкапов</h2>
+        <p class="text-muted mb-0">Показаны последние 10 файлов бэкапов</p>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Файл</th>
+                        <th>Размер</th>
+                        <th>Создан</th>
+                        <th>Возраст</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for backup in backup_info.backup_files %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                {% if '_db.sqlite' in backup.name %}
+                                    <i class="fas fa-database text-primary me-2"></i>
+                                {% elif '_config' in backup.name or '.env' in backup.name %}
+                                    <i class="fas fa-cog text-info me-2"></i>
+                                {% elif '_uploads' in backup.name %}
+                                    <i class="fas fa-file-archive text-warning me-2"></i>
+                                {% elif '_manifest' in backup.name %}
+                                    <i class="fas fa-file-alt text-success me-2"></i>
+                                {% else %}
+                                    <i class="fas fa-file text-muted me-2"></i>
+                                {% endif %}
+                                <span class="font-family-mono">{{ backup.name }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if backup.size > 1024*1024 %}
+                                {{ "%.1f"|format(backup.size / (1024*1024)) }} MB
+                            {% elif backup.size > 1024 %}
+                                {{ "%.1f"|format(backup.size / 1024) }} KB
+                            {% else %}
+                                {{ backup.size }} B
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="text-nowrap">
+                                {{ backup.created | regex_replace('T', ' ') | regex_replace('\\..*$', '') }}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge {% if backup.age_days == 0 %}badge-success{% elif backup.age_days == 1 %}badge-primary{% elif backup.expires_soon %}badge-warning{% else %}badge-danger{% endif %}">
+                                {% if backup.age_days == 0 %}
+                                    Сегодня
+                                {% elif backup.age_days == 1 %}
+                                    1 день
+                                {% else %}
+                                    {{ backup.age_days }} дн.
+                                {% endif %}
+                                {% if backup.expires_soon %} ⚠️{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('admin.download_backup', filename=backup.name) }}" 
+                               class="btn btn-sm btn-outline-primary" 
+                               title="Скачать файл">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="fas fa-archive fa-3x text-muted mb-3"></i>
+        <h4 class="text-muted">Нет файлов бэкапов</h4>
+        <p class="text-muted mb-4">Создайте первый бэкап нажав кнопку "Создать бэкап сейчас"</p>
+        <form method="POST" action="{{ url_for('admin.create_manual_backup') }}" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Создать первый бэкап
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Information Panel -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h2 class="card-title">Информация о бэкапах</h2>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="fw-semibold mb-2">Что включено в бэкап:</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-database text-primary me-2"></i>База данных SQLite</li>
+                    <li><i class="fas fa-cog text-info me-2"></i>Конфигурационные файлы (.env, config.py)</li>
+                    <li><i class="fas fa-file-archive text-warning me-2"></i>Загруженные файлы</li>
+                    <li><i class="fas fa-file-alt text-success me-2"></i>Манифест бэкапа</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h6 class="fw-semibold mb-2">Автоматическое управление:</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-clock text-primary me-2"></i>Создание каждые {{ backup_info.interval_hours or 6 }} часов</li>
+                    <li><i class="fas fa-archive text-info me-2"></i>Сжатие для экономии места</li>
+                    <li><i class="fas fa-trash text-warning me-2"></i>Автоудаление через {{ backup_info.max_age_days or 2 }} дня</li>
+                    <li><i class="fas fa-shield-alt text-success me-2"></i>Безопасное создание без блокировки БД</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Примечание:</strong> Автоматические бэкапы создаются в фоновом режиме без влияния на производительность системы. 
+            Старые бэкапы автоматически удаляются для экономии дискового пространства.
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh backup status every 30 seconds
+setInterval(function() {
+    // Only refresh if page is visible
+    if (!document.hidden) {
+        location.reload();
+    }
+}, 30000);
+</script>
+{% endblock %}

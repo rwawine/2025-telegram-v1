@@ -21,39 +21,58 @@ admin_bp = Blueprint("admin", __name__)
 
 
 def _get_admin_db() -> AdminDatabase:
-    config = current_app.config
-    return AdminDatabase(db_path=config["DATABASE_PATH"])
+    """Get admin database connection with error handling."""
+    try:
+        config = current_app.config
+        db_path = config.get("DATABASE_PATH", "data/lottery_bot.sqlite")
+        return AdminDatabase(db_path=db_path)
+    except Exception as e:
+        current_app.logger.error(f"Failed to connect to admin database: {e}")
+        raise
 
 
 @admin_bp.route("/")
 @login_required
 def dashboard():
-    db = _get_admin_db()
-    raw = db.get_statistics()
-    stats = {
-        "total_participants": raw.get("total_participants", 0),
-        "total_winners": raw.get("total_winners", 0),
-        "open_tickets": raw.get("open_tickets", 0),
-        "by_status": {
-            "approved": raw.get("approved_participants", 0),
-            "pending": raw.get("pending_participants", 0),
-            "rejected": raw.get("rejected_participants", 0),
-        },
-    }
-    recent_participants, _ = db.list_participants(page=1, per_page=10)
-    # Load a few recent open tickets for dashboard support block
-    recent_tickets, _ = db.list_support_tickets(page=1, per_page=3)
-    moderation = db.get_moderation_activity()
-    top_reasons = db.get_top_rejection_reasons(limit=5)
+    try:
+        db = _get_admin_db()
+        raw = db.get_statistics()
+        stats = {
+            "total_participants": raw.get("total_participants", 0),
+            "total_winners": raw.get("total_winners", 0),
+            "open_tickets": raw.get("open_tickets", 0),
+            "by_status": {
+                "approved": raw.get("approved_participants", 0),
+                "pending": raw.get("pending_participants", 0),
+                "rejected": raw.get("rejected_participants", 0),
+            },
+        }
+        recent_participants, _ = db.list_participants(page=1, per_page=10)
+        # Load a few recent open tickets for dashboard support block
+        recent_tickets, _ = db.list_support_tickets(page=1, per_page=3)
+        moderation = db.get_moderation_activity()
+        top_reasons = db.get_top_rejection_reasons(limit=5)
 
-    return render_template(
-        "dashboard.html",
-        stats=stats,
-        recent_participants=recent_participants,
-        recent_tickets=recent_tickets,
-        moderation=moderation,
-        top_reasons=top_reasons,
-    )
+        return render_template(
+            "dashboard.html",
+            stats=stats,
+            recent_participants=recent_participants,
+            recent_tickets=recent_tickets,
+            moderation=moderation,
+            top_reasons=top_reasons,
+        )
+    except Exception as e:
+        current_app.logger.error(f"Dashboard error: {e}")
+        flash("Ошибка загрузки данных панели управления", "error")
+        # Return basic dashboard with empty data
+        return render_template(
+            "dashboard.html",
+            stats={"total_participants": 0, "total_winners": 0, "open_tickets": 0, "by_status": {"approved": 0, "pending": 0, "rejected": 0}},
+            recent_participants=[],
+            recent_tickets=[],
+            moderation={"processed_today": 0, "approved_today": 0, "rejected_today": 0},
+            top_reasons=[],
+        )
 
 
 @admin_bp.route("/login", methods=["GET", "POST"])
@@ -1018,6 +1037,88 @@ def serve_upload(filename: str):
     # Use send_from_directory with proper path handling
     import flask
     return flask.send_from_directory(str(base_path), safe_name)
+
+
+@admin_bp.route("/backups")
+@login_required
+def backups():
+    """Backup management page."""
+    backup_service = current_app.config.get("BACKUP_SERVICE")
+    
+    if backup_service:
+        backup_info = backup_service.get_backup_info()
+    else:
+        backup_info = {"error": "Backup service not available"}
+    
+    return render_template("backups.html", backup_info=backup_info)
+
+
+@admin_bp.route("/backups/create", methods=["POST"])
+@login_required
+def create_manual_backup():
+    """Create backup manually."""
+    backup_service = current_app.config.get("BACKUP_SERVICE")
+    
+    if not backup_service:
+        flash("Backup service not available", "error")
+        return redirect(url_for("admin.backups"))
+    
+    try:
+        success = backup_service.create_full_backup()
+        if success:
+            flash("Backup created successfully", "success")
+        else:
+            flash("Failed to create backup", "error")
+    except Exception as e:
+        current_app.logger.exception("Manual backup failed")
+        flash(f"Backup failed: {e}", "error")
+    
+    return redirect(url_for("admin.backups"))
+
+
+@admin_bp.route("/backups/download/<filename>")
+@login_required
+def download_backup(filename: str):
+    """Download backup file."""
+    from werkzeug.utils import secure_filename
+    from pathlib import Path
+    
+    safe_filename = secure_filename(filename)
+    backup_dir = Path(current_app.config.get("BACKUP_FOLDER", "backups"))
+    backup_path = backup_dir / safe_filename
+    
+    if not backup_path.exists() or not backup_path.is_file():
+        flash("Backup file not found", "error")
+        return redirect(url_for("admin.backups"))
+    
+    # Security check - ensure file is in backup directory
+    try:
+        backup_path.resolve().relative_to(backup_dir.resolve())
+    except ValueError:
+        flash("Access denied", "error")
+        return redirect(url_for("admin.backups"))
+    
+    return send_from_directory(str(backup_dir), safe_filename, as_attachment=True)
+
+
+@admin_bp.route("/backups/cleanup", methods=["POST"])
+@login_required
+def cleanup_old_backups():
+    """Cleanup old backup files."""
+    backup_service = current_app.config.get("BACKUP_SERVICE")
+    
+    if not backup_service:
+        flash("Backup service not available", "error")
+        return redirect(url_for("admin.backups"))
+    
+    try:
+        backup_service.cleanup_old_backups()
+        flash("Old backups cleaned up successfully", "success")
+    except Exception as e:
+        current_app.logger.exception("Backup cleanup failed")
+        flash(f"Cleanup failed: {e}", "error")
+    
+    return redirect(url_for("admin.backups"))
 
 
 @admin_bp.route("/api/search")

@@ -128,6 +128,14 @@
                             🖥️ Система
                         </a>
                     </div>
+                    
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin.backups') }}" 
+                           class="nav-link {% if request.endpoint == 'admin.backups' %}active{% endif %}">
+                            <i class="fas fa-archive"></i>
+                            💾 Бэкапы
+                        </a>
+                    </div>
                         </div>
             </nav>
         </aside>

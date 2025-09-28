@@ -16,6 +16,7 @@ from bot import OptimizedBot
 from config import load_config
 from database import init_db_pool, run_migrations
 from services import BroadcastService, SecureLottery, set_main_loop
+from services.backup_service import init_backup_service
 from services.cache import init_cache
 from utils.performance import PerformanceMonitor
 from web import create_app
@@ -61,10 +62,20 @@ async def init_bot(config, cache):
 
 
 async def main() -> None:
+    # Initialize system on first run
+    from pathlib import Path
+    if not Path("data").exists() or not Path(".env").exists():
+        print("🚀 First-time setup detected. Initializing system...")
+        from system_initializer import initialize_system
+        if not initialize_system():
+            logger.error("System initialization failed")
+            return
+        print("✅ System initialized. Starting application...")
+    
     config = load_config()
-    if not config.bot_token:
-        logger.error("BOT_TOKEN is not set")
-        return
+    if not config.bot_token or config.bot_token == "your_bot_token_here":
+        logger.warning("BOT_TOKEN is not set properly. Running in admin-only mode (web interface only).")
+        # Don't return, allow web interface to run without bot
 
     loop = asyncio.get_running_loop()
     set_main_loop(loop)
@@ -82,18 +93,39 @@ async def main() -> None:
         cold_ttl=config.cache_ttl_cold,
     )
 
-    bot = await init_bot(config, cache)
-    broadcast_service = BroadcastService(
-        bot.bot,
-        rate_limit=config.broadcast_rate_limit,
-        batch_size=config.broadcast_batch_size,
-    )
+    # Initialize bot only if token is properly configured
+    bot = None
+    broadcast_service = None
+    
+    if config.bot_token and config.bot_token != "your_bot_token_here":
+        try:
+            bot = await init_bot(config, cache)
+            broadcast_service = BroadcastService(
+                bot.bot,
+                rate_limit=config.broadcast_rate_limit,
+                batch_size=config.broadcast_batch_size,
+            )
+            logger.info("Bot initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize bot: {e}")
+            logger.info("Continuing with web interface only...")
+    else:
+        logger.info("Running in admin-only mode (web interface only)")
 
     monitor = PerformanceMonitor()
     start_http_server(port=config.prometheus_port)
+    
+    # Initialize backup service
+    backup_service = init_backup_service(
+        db_path=config.database_path,
+        backup_dir=config.backup_folder,
+        max_age_days=2,  # Keep backups for 2 days only
+        backup_interval_hours=6  # Backup every 6 hours
+    )
 
     flask_app = create_app(config)
     flask_app.config["BROADCAST_SERVICE"] = broadcast_service
+    flask_app.config["BACKUP_SERVICE"] = backup_service
     
     # Add additional configuration
     flask_app.config.update({
@@ -120,14 +152,37 @@ async def main() -> None:
     await runner.setup()
     site = aiohttp_web.TCPSite(runner, config.web_host, config.web_port)
     await site.start()
+    
+    logger.info(f"🚀 Web server started on http://{config.web_host}:{config.web_port}")
+    logger.info("🔗 Admin panel: http://localhost:5000")
+    logger.info("💻 Default login: admin / 123456")
+    
+    # Start backup service
+    await backup_service.start()
+    logger.info("💾 Automatic backup service started (every 6 hours, keep 2 days)")
 
-    bot_task = asyncio.create_task(bot.start())
+    # Start bot if available
+    bot_task = None
+    if bot:
+        bot_task = asyncio.create_task(bot.start())
+        logger.info("🤖 Telegram bot started")
 
     try:
-        await bot_task
+        if bot_task:
+            await bot_task
+        else:
+            # Keep the web server running indefinitely
+            logger.info("⚡ Admin-only mode: web interface running...")
+            while True:
+                await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
     finally:
         with suppress(Exception):
-            await bot.stop()
+            if bot:
+                await bot.stop()
+        with suppress(Exception):
+            await backup_service.stop()
         with suppress(Exception):
             await runner.cleanup()
 
