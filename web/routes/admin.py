@@ -134,8 +134,8 @@ def participants():
 @admin_bp.route("/participants/clear", methods=["POST"])
 @login_required
 def clear_participants():
-    confirm = request.form.get("confirm", "").strip().lower()
-    if confirm != "удалить":
+    confirm_word = request.form.get("confirm_word", "").strip().lower()
+    if confirm_word != "удалить":
         flash("Для подтверждения введите слово 'удалить'", "warning")
         return redirect(url_for("admin.participants"))
     db = _get_admin_db()
@@ -145,6 +145,32 @@ def clear_participants():
     except Exception as e:
         current_app.logger.exception("Ошибка очистки участников")
         flash(f"Не удалось очистить участников: {e}", "error")
+    return redirect(url_for("admin.participants"))
+
+
+@admin_bp.route("/participants/delete_selected", methods=["POST"])
+@login_required
+def delete_selected_participants():
+    participant_ids = request.form.get("participant_ids", "").split(",")
+    participant_ids = [pid.strip() for pid in participant_ids if pid.strip()]
+    
+    if not participant_ids:
+        flash("Не выбраны участники для удаления", "error")
+        return redirect(url_for("admin.participants"))
+
+    db = _get_admin_db()
+    try:
+        with db._connect() as conn:
+            placeholders = ",".join("?" for _ in participant_ids)
+            # Delete related data first
+            conn.execute(f"DELETE FROM winners WHERE participant_id IN ({placeholders})", participant_ids)
+            conn.execute(f"DELETE FROM support_tickets WHERE telegram_id IN (SELECT telegram_id FROM participants WHERE id IN ({placeholders}))", participant_ids)
+            conn.execute(f"DELETE FROM participants WHERE id IN ({placeholders})", participant_ids)
+            conn.commit()
+        flash(f"Удалено участников: {len(participant_ids)}", "success")
+    except Exception as e:
+        current_app.logger.exception("Ошибка удаления участников")
+        flash(f"Не удалось удалить участников: {e}", "error")
     return redirect(url_for("admin.participants"))
 
 
@@ -1006,6 +1032,54 @@ def send_broadcast(broadcast_id: int):
         current_app.logger.exception("Ошибка отправки рассылки")
         db.update_broadcast_status(broadcast_id, "failed")
         flash(f"Ошибка отправки рассылки: {e}", "error")
+    
+    return redirect(url_for("admin.broadcasts"))
+
+
+@admin_bp.route("/broadcasts/<int:broadcast_id>/edit", methods=["POST"])
+@login_required
+def edit_broadcast(broadcast_id: int):
+    # Get form data
+    title = request.form.get("title", "").strip()
+    message_text = request.form.get("message_text", "").strip()
+    target_audience = request.form.get("target_audience", "approved")
+    
+    if not message_text:
+        if request.headers.get('Accept', '').lower().startswith('application/json'):
+            return jsonify({"error": "Текст сообщения обязателен"}), 400
+        flash("Текст сообщения обязателен", "error")
+        return redirect(url_for("admin.broadcasts"))
+    
+    db = _get_admin_db()
+    try:
+        # Update broadcast - only allow editing drafts
+        with db._connect() as conn:
+            # Check if broadcast is draft
+            result = conn.execute("SELECT status FROM broadcast_jobs WHERE id = ?", (broadcast_id,)).fetchone()
+            if not result or result[0] != 'draft':
+                error_msg = "Можно редактировать только черновики"
+                if request.headers.get('Accept', '').lower().startswith('application/json'):
+                    return jsonify({"error": error_msg}), 400
+                flash(error_msg, "error")
+                return redirect(url_for("admin.broadcasts"))
+            
+            # Update broadcast
+            conn.execute("""
+                UPDATE broadcast_jobs 
+                SET message_text = ?, media_caption = ?, media_type = ?
+                WHERE id = ?
+            """, (message_text, title or message_text, target_audience, broadcast_id))
+            conn.commit()
+        
+        flash("Рассылка обновлена", "success")
+        if request.headers.get('Accept', '').lower().startswith('application/json'):
+            return jsonify({"message": "Рассылка успешно обновлена"})
+    except Exception as e:
+        current_app.logger.exception("Ошибка обновления рассылки")
+        error_msg = f"Не удалось обновить рассылку: {e}"
+        if request.headers.get('Accept', '').lower().startswith('application/json'):
+            return jsonify({"error": error_msg}), 500
+        flash(error_msg, "error")
     
     return redirect(url_for("admin.broadcasts"))
 

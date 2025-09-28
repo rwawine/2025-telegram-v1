@@ -130,29 +130,26 @@ class AdaptiveKeyboards:
             # Незарегистрированный пользователь
             keyboard.extend([
                 [KeyboardButton(text="🚀 Начать регистрацию")],
-                [KeyboardButton(text="📊 О розыгрыше"), KeyboardButton(text="❓ Помощь")]
+                [KeyboardButton(text="📊 О розыгрыше"), KeyboardButton(text="💬 Поддержка")]
             ])
         elif user_status == "pending":
             # Заявка на модерации
             keyboard.extend([
                 [KeyboardButton(text="⏳ Мой статус")],
-                [KeyboardButton(text="📊 О розыгрыше"), KeyboardButton(text="❓ Помощь")]
+                [KeyboardButton(text="📊 О розыгрыше"), KeyboardButton(text="💬 Поддержка")]
             ])
         elif user_status == "approved":
             # Одобренный участник
             keyboard.extend([
-                [KeyboardButton(text="✅ Мой статус"), KeyboardButton(text="💬 Помощь")],
-                [KeyboardButton(text="📊 О розыгрыше")]
+                [KeyboardButton(text="✅ Мой статус")],
+                [KeyboardButton(text="📊 О розыгрыше"), KeyboardButton(text="💬 Поддержка")]
             ])
         elif user_status == "rejected":
             # Отклоненная заявка
             keyboard.extend([
                 [KeyboardButton(text="🔄 Подать заявку снова")],
-                [KeyboardButton(text="❌ Мой статус"), KeyboardButton(text="❓ Помощь")]
+                [KeyboardButton(text="📊 О розыгрыше"), KeyboardButton(text="💬 Поддержка")]
             ])
-        
-        # Общие кнопки для всех
-        keyboard.append([KeyboardButton(text="💬 Техподдержка")])
         
         # Определяем подсказку
         hints = {

@@ -38,6 +38,11 @@
                 <button type="submit" class="btn btn-primary">🔍 Найти</button>
                 <button type="button" class="btn btn-outline ms-2" data-bs-toggle="modal" data-bs-target="#importModal">⬆️ Импорт</button>
                 <a class="btn btn-outline ms-2" href="{{ url_for('admin.export_participants', status=current_status) }}">⬇️ Экспорт</a>
+                <button type="button" class="btn btn-danger ms-2" 
+                        data-bs-toggle="modal" 
+                        data-bs-target="#clearAllModal">
+                    🗑️ Очистить всех
+                </button>
             </div>
         </form>
     </div>
@@ -166,6 +171,15 @@
                 <div>
                     <button class="btn btn-success btn-sm" id="bulk-approve">✅ Одобрить</button>
                     <button class="btn btn-danger btn-sm" id="bulk-reject">❌ Отклонить</button>
+                    <button class="btn btn-danger btn-sm" id="bulk-delete" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#confirmationModal"
+                            data-bs-title="Удалить выбранных участников?"
+                            data-bs-body="Это действие нельзя отменить. Будут удалены все связанные данные."
+                            data-bs-action="{{ url_for('admin.delete_selected_participants') }}"
+                            data-bs-confirm-word="удалить">
+                        🗑️ Удалить выбранных
+                    </button>
                 </div>
             </div>
         </div>
@@ -238,6 +252,23 @@ document.addEventListener('DOMContentLoaded', function() {
         openMassAction('rejected');
     });
 
+    document.getElementById('bulk-delete')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        const ids = Array.from(document.querySelectorAll('.row-select:checked')).map(cb => cb.value);
+        if (ids.length === 0) return;
+        
+        // Create form for bulk delete
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = "{{ url_for('admin.delete_selected_participants') }}";
+        form.innerHTML = `
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="participant_ids" value="${ids.join(',')}">
+        `;
+        document.body.appendChild(form);
+        form.submit();
+    });
+
     // Hover эффекты для метрик
     document.querySelectorAll('.metric-card.hover-elevate').forEach(card => {
         card.addEventListener('mouseenter', function() {
@@ -250,6 +281,19 @@ document.addEventListener('DOMContentLoaded', function() {
             this.style.boxShadow = 'none';
         });
     });
+
+    // Clear All confirmation
+    const confirmWordInput = document.getElementById('confirmWord');
+    const confirmClearAllButton = document.getElementById('confirmClearAll');
+    
+    if (confirmWordInput && confirmClearAllButton) {
+        confirmWordInput.addEventListener('input', function() {
+            const isValid = this.value.trim().toLowerCase() === 'удалить';
+            confirmClearAllButton.disabled = !isValid;
+            confirmClearAllButton.classList.toggle('btn-danger', isValid);
+            confirmClearAllButton.classList.toggle('btn-secondary', !isValid);
+        });
+    }
 });
 </script>
 {% endblock %}
@@ -274,6 +318,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                     <button type="submit" class="btn btn-primary">Импортировать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Clear All Modal -->
+<div class="modal fade" id="clearAllModal" tabindex="-1" aria-labelledby="clearAllModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin.clear_participants') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="clearAllModalLabel">⚠️ Очистить всех участников</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <strong>Внимание!</strong> Это действие удалит ВСЕХ участников и связанные данные:
+                        <ul class="mb-0 mt-2">
+                            <li>Все заявки участников</li>
+                            <li>Список победителей</li>
+                            <li>Тикеты поддержки</li>
+                            <li>Очередь рассылок</li>
+                        </ul>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmWord" class="form-label">Для подтверждения введите слово <strong>"удалить"</strong>:</label>
+                        <input type="text" class="form-control" id="confirmWord" name="confirm_word" required 
+                               placeholder="Введите: удалить">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger" id="confirmClearAll" disabled>🗑️ Удалить всех</button>
                 </div>
             </form>
         </div>

@@ -134,6 +134,15 @@
                         {% elif ticket.status == 'in_progress' %}
                         <button class="btn btn-sm btn-success" data-action="close">Закрыть</button>
                         {% endif %}
+                        <button class="btn btn-sm btn-outline-danger" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#confirmationModal"
+                                data-bs-title="Удалить тикет?"
+                                data-bs-body="Это действие нельзя отменить. Тикет и все его сообщения будут удалены."
+                                data-bs-action="{{ url_for('admin.delete_support_ticket', ticket_id=ticket.id) }}"
+                                title="Удалить тикет">
+                            <i class="fas fa-trash"></i> Удалить
+                        </button>
                         <form class="d-none" method="POST" action="{{ url_for('admin.update_ticket_status', ticket_id=ticket.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <input type="hidden" name="status" value=""/>
@@ -360,20 +369,42 @@ async function sendReply(btn) {
     const match = detailLink?.href.match(/\/support_tickets\/(\d+)/);
     const ticketId = match ? match[1] : null;
     try {
-        const res = await fetch(`/support_tickets/${ticketId}/status`, {
+        const res = await fetch(`/admin/support_tickets/${ticketId}/status`, {
             method: 'POST',
-            headers: { 'Accept': 'application/json' },
-            body: (() => { const fd = new FormData(); fd.append('status','in_progress'); fd.append('response_message', message); fd.append('csrf_token', window.CSRF_TOKEN||''); return fd; })()
+            headers: { 
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: (() => { 
+                const fd = new FormData(); 
+                fd.append('status','in_progress'); 
+                fd.append('response_message', message); 
+                fd.append('csrf_token', window.CSRF_TOKEN||''); 
+                return fd; 
+            })()
         });
+        
         const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.ok) throw new Error(data.message || 'Ошибка');
+        
+        if (!res.ok) {
+            throw new Error(data.error || data.message || `HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        if (!data.ok) {
+            throw new Error(data.message || 'Неизвестная ошибка сервера');
+        }
+        
         const statusBadge = ticket.querySelector('.status-badge:first-child');
-        statusBadge.className = 'status-badge status-in-progress';
-        statusBadge.textContent = 'В работе';
+        if (statusBadge) {
+            statusBadge.className = 'status-badge status-in-progress';
+            statusBadge.textContent = 'В работе';
+        }
+        
         notyf.success('Ответ отправлен, статус обновлен');
         replyContainer.remove();
     } catch (e) {
-        notyf.error('Не удалось отправить ответ');
+        console.error('Reply error:', e);
+        notyf.error(`Ошибка отправки ответа: ${e.message}`);
     }
 }
 
@@ -395,19 +426,46 @@ async function submitTicketStatusAjax(btn, status) {
     const ticketId = match ? match[1] : null;
     if (!ticketId) return;
     try {
-        const res = await fetch(`/support_tickets/${ticketId}/status`, {
+        const res = await fetch(`/admin/support_tickets/${ticketId}/status`, {
             method: 'POST',
-            headers: { 'Accept': 'application/json' },
-            body: (() => { const fd = new FormData(); fd.append('status', status); fd.append('csrf_token', window.CSRF_TOKEN||''); return fd; })()
+            headers: { 
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: (() => { 
+                const fd = new FormData(); 
+                fd.append('status', status); 
+                fd.append('csrf_token', window.CSRF_TOKEN||''); 
+                return fd; 
+            })()
         });
+        
         const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.ok) throw new Error(data.message || 'Ошибка');
+        
+        if (!res.ok) {
+            throw new Error(data.error || data.message || `HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        if (!data.ok) {
+            throw new Error(data.message || 'Неизвестная ошибка сервера');
+        }
+        
         const statusBadge = ticket.querySelector('.status-badge:first-child');
-        if (status === 'in_progress') { statusBadge.className = 'status-badge status-in-progress'; statusBadge.textContent = 'В работе'; }
-        if (status === 'closed') { statusBadge.className = 'status-badge status-archived'; statusBadge.textContent = 'Закрыт'; }
+        if (statusBadge) {
+            if (status === 'in_progress') { 
+                statusBadge.className = 'status-badge status-in-progress'; 
+                statusBadge.textContent = 'В работе'; 
+            }
+            if (status === 'closed') { 
+                statusBadge.className = 'status-badge status-archived'; 
+                statusBadge.textContent = 'Закрыт'; 
+            }
+        }
+        
         notyf.success('Статус обновлен');
     } catch (e) {
-        notyf.error('Не удалось обновить статус');
+        console.error('Status update error:', e);
+        notyf.error(`Ошибка обновления статуса: ${e.message}`);
     }
 }
 </script>

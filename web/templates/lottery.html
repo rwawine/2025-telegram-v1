@@ -48,15 +48,25 @@
     </div>
     <div class="card-body">
         <div class="grid grid-cols-3 gap-4">
+            {% if stats.approved_participants > 0 %}
             <form method="POST" action="{{ url_for('admin.run_lottery') }}" class="d-flex align-items-center gap-2">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <label class="form-label mb-0">Победителей:</label>
-                <input type="number" min="1" value="10" name="winners" class="form-control" style="width: 120px;"/>
+                <input type="number" min="1" max="{{ stats.approved_participants }}" value="10" name="winners" class="form-control" style="width: 120px;"/>
                 <button class="btn btn-primary btn-lg" type="submit">
                 <i class="fas fa-dice"></i>
                 Провести новый розыгрыш
                 </button>
             </form>
+            {% else %}
+            <div class="alert alert-warning d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <div>
+                    <strong>Нет участников для розыгрыша</strong><br>
+                    <small>Сначала одобрите заявки участников в разделе "Участники"</small>
+                </div>
+            </div>
+            {% endif %}
             <a class="btn btn-outline btn-lg" href="{{ url_for('admin.export_winners', run_id=selected_run) }}">
                 <i class="fas fa-download"></i>
                 Экспорт победителей

@@ -22,7 +22,7 @@ from bot.keyboards import (
     get_photo_upload_keyboard,
     get_status_keyboard,
 )
-from bot.context_manager import context_manager, UserContext, UserAction
+from bot.context_manager import UserContext, UserAction
 from bot.messages import smart_messages
 
 BATCH_SIZE = 25
@@ -47,6 +47,8 @@ class RegistrationHandler:
     def _register_handlers(self) -> None:
         # Entry points and main actions
         self.router.message.register(self.start_registration, F.text.contains("регистрац"))
+        self.router.message.register(self.start_registration, F.text == "🚀 Начать регистрацию")
+        self.router.message.register(self.start_registration, F.text == "🔄 Подать заявку снова")
         self.router.message.register(self.handle_status, F.text.contains("статус"))
         self.router.message.register(self.back_to_menu, F.text.contains("Главное меню"))
 
@@ -108,11 +110,14 @@ class RegistrationHandler:
 
     async def start_registration(self, message: types.Message, state: FSMContext) -> None:
         # Обновляем контекст пользователя
-        await context_manager.update_context(
-            message.from_user.id,
-            UserContext.REGISTRATION,
-            UserAction.BUTTON_CLICK
-        )
+        from bot.context_manager import get_context_manager
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id,
+                UserContext.REGISTRATION,
+                UserAction.BUTTON_CLICK
+            )
         
         # Получаем умное сообщение для ввода имени
         reg_messages = smart_messages.get_registration_messages()
@@ -128,15 +133,19 @@ class RegistrationHandler:
     async def enter_name(self, message: types.Message, state: FSMContext) -> None:
         full_name = message.text or ""
         
-        await context_manager.update_context(
-            message.from_user.id,
-            UserContext.REGISTRATION,
-            UserAction.TEXT_INPUT
-        )
+        from bot.context_manager import get_context_manager
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id,
+                UserContext.REGISTRATION,
+                UserAction.TEXT_INPUT
+            )
         
         # If user sends a phone number as name, guide them
         if validate_phone(full_name):
-            await context_manager.increment_error_count(message.from_user.id)
+            if context_manager:
+                await context_manager.increment_error_count(message.from_user.id)
             await message.answer(
                 "📱 **Это похоже на номер телефона!**\n\n"
                 "🎯 Сейчас нам нужно ваше **полное имя**\n"
@@ -148,7 +157,8 @@ class RegistrationHandler:
             return
             
         if not validate_full_name(full_name):
-            await context_manager.increment_error_count(message.from_user.id)
+            if context_manager:
+                await context_manager.increment_error_count(message.from_user.id)
             error_messages = smart_messages.get_error_messages()
             error_msg = error_messages["name_invalid"]
             

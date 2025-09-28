@@ -241,9 +241,14 @@
                 <h5 class="modal-title" id="viewModalLabel">Подробности рассылки</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" x-data="{ viewData: {} }" id="viewModalBody">
-                <template x-if="viewData && viewData.title">
-                    <div>
+            <div class="modal-body" x-data="{ viewData: {}, loading: true }" id="viewModalBody">
+                <div x-show="loading" class="text-center p-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                    <p class="mt-2">Загрузка данных...</p>
+                </div>
+                <div x-show="!loading && viewData.id" x-cloak>
                         <dl class="row">
                             <dt class="col-sm-3">Название</dt>
                             <dd class="col-sm-9" x-text="viewData.title"></dd>
@@ -275,11 +280,11 @@
                                 <p class="h4 text-danger" x-text="viewData.failed_count || 0"></p>
                             </div>
                         </div>
-                    </div>
-                </template>
-                <template x-if="!viewData || !viewData.title">
-                    <div class="text-center text-muted p-5">Загрузка данных...</div>
-                </template>
+                </div>
+                <div x-show="!loading && !viewData.id" x-cloak class="text-center text-muted p-5">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                    <p>Не удалось загрузить данные рассылки</p>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
@@ -345,62 +350,88 @@ document.addEventListener('alpine:init', () => {
 
         async editBroadcast(id) {
             try {
-                const response = await fetch(`/api/broadcast/${id}`);
-                if (!response.ok) throw new Error('Network response was not ok');
+                const response = await fetch(`/admin/api/broadcast/${id}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
                 const data = await response.json();
                 this.isEditMode = true;
                 this.broadcastId = id;
-                this.form.title = data.title;
-                this.form.target_audience = data.target_audience;
-                this.form.message_text = data.message_text;
+                this.form.title = data.title || '';
+                this.form.target_audience = data.target_audience || 'approved';
+                this.form.message_text = data.message_text || '';
                 this.createModal.show();
             } catch (error) {
-                console.error('Fetch error:', error);
-                notyf.error('Не удалось загрузить данные рассылки.');
+                console.error('Edit broadcast error:', error);
+                notyf.error(`Ошибка загрузки рассылки: ${error.message}`);
             }
         },
 
         async viewBroadcast(id) {
             const viewModalBody = document.getElementById('viewModalBody');
             if (viewModalBody && viewModalBody.__x) {
-                viewModalBody.__x.$data.viewData = {}; // Clear previous data
+                viewModalBody.__x.$data.viewData = {};
+                viewModalBody.__x.$data.loading = true;
             }
             this.viewModal.show();
             try {
-                const response = await fetch(`/api/broadcast/${id}`);
-                if (!response.ok) throw new Error('Network response was not ok');
+                const response = await fetch(`/admin/api/broadcast/${id}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
                 const data = await response.json();
                 if (viewModalBody && viewModalBody.__x) {
                     viewModalBody.__x.$data.viewData = data;
+                    viewModalBody.__x.$data.loading = false;
                 }
             } catch (error) {
-                console.error('Fetch error:', error);
-                notyf.error('Не удалось загрузить детали рассылки.');
+                console.error('View broadcast error:', error);
+                if (viewModalBody && viewModalBody.__x) {
+                    viewModalBody.__x.$data.loading = false;
+                }
+                notyf.error(`Ошибка загрузки деталей рассылки: ${error.message}`);
             }
         },
 
         async submitForm(e) {
+            e.preventDefault();
             const form = e.target;
             const formData = new FormData(form);
+            
+            // Add loading state
+            const submitButton = form.querySelector('button[type="submit"]');
+            const originalText = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Сохранение...';
             
             try {
                 const response = await fetch(this.formAction, {
                     method: 'POST',
                     body: formData,
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
                 });
 
-                const result = await response.json();
+                const result = await response.json().catch(() => ({}));
 
                 if (response.ok) {
                     this.createModal.hide();
-                    notyf.success(result.message || 'Рассылка успешно сохранена!');
+                    notyf.success(result.message || (this.isEditMode ? 'Рассылка успешно обновлена!' : 'Рассылка успешно создана!'));
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    throw new Error(result.message || 'Произошла ошибка.');
+                    throw new Error(result.error || result.message || `HTTP ${response.status}: ${response.statusText}`);
                 }
             } catch (error) {
-                notyf.error(error.message);
+                console.error('Submit form error:', error);
+                notyf.error(`Ошибка сохранения: ${error.message}`);
+            } finally {
+                // Reset button state
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
             }
         }
     }));

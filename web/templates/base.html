@@ -359,10 +359,17 @@
         if (q.length < 2) { searchDropdown.style.display='none'; return; }
         searchTimer = setTimeout(async () => {
             try {
-                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const res = await fetch(`/admin/api/search?q=${encodeURIComponent(q)}`);
+                
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${res.status}: ${res.statusText}`);
+                }
+                
                 const data = await res.json();
                 const groups = data.results || {};
                 let html = '';
+                
                 const renderGroup = (title, items) => {
                     if (!items || !items.length) return '';
                     let s = `<div class="dropdown-header">${title}</div>`;
@@ -374,14 +381,17 @@
                     s += '<div class="dropdown-divider"></div>';
                     return s;
                 };
+                
                 html += renderGroup('Участники', groups.participants);
                 html += renderGroup('Тикеты', groups.tickets);
                 html += renderGroup('Победители', groups.winners);
+                
                 if (!html) html = '<div class="dropdown-item text-muted">Ничего не найдено</div>';
                 searchDropdown.innerHTML = html;
                 searchDropdown.style.display = 'block';
             } catch(e) {
-                searchDropdown.innerHTML = '<div class="dropdown-item text-danger">Ошибка поиска</div>';
+                console.error('Search error:', e);
+                searchDropdown.innerHTML = `<div class="dropdown-item text-danger">Ошибка поиска: ${e.message}</div>`;
                 searchDropdown.style.display = 'block';
             }
         }, 250);

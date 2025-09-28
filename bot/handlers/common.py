@@ -19,8 +19,8 @@ class CommonHandlers:
 
     def _register(self) -> None:
         self.router.message.register(self.start, Command("start"))
-        self.router.message.register(self.help_and_support_handler, F.text.in_(["❓ Помощь", "💬 Помощь", "💬 Техподдержка"]))
-        self.router.message.register(self.status_handler, F.text.in_(["📋 Мой статус", "✅ Мой статус"]))
+        self.router.message.register(self.help_and_support_handler, F.text.in_(["❓ Помощь", "💬 Помощь", "💬 Техподдержка", "💬 Поддержка"]))
+        self.router.message.register(self.status_handler, F.text.in_(["📋 Мой статус", "✅ Мой статус", "⏳ Мой статус", "❌ Мой статус"]))
         self.router.message.register(self.show_info_menu, F.text.contains("розыгрыш"))
         # Обработчик для старых результатов - перенаправляем на помощь
         self.router.message.register(self.handle_results_redirect, F.text.contains("🏆 Результаты"))
