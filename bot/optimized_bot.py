@@ -6,7 +6,6 @@ import asyncio
 from typing import Awaitable, Callable, Iterable
 
 from aiogram import Bot, Dispatcher
-from aiogram.client.bot import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from asyncio_throttle import Throttler
@@ -20,7 +19,7 @@ class OptimizedBot:
         worker_threads: int,
         message_queue_size: int,
     ) -> None:
-        self.bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+        self.bot = Bot(token=token, parse_mode=ParseMode.HTML)
         self.storage = MemoryStorage()
         self.dispatcher = Dispatcher(storage=self.storage)
         self.rate_limit = rate_limit
