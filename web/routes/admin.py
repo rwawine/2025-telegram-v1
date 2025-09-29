@@ -542,7 +542,7 @@ def settings():
 @admin_bp.route("/settings", methods=["POST"])
 @login_required
 def save_settings():
-    # Caution: For demo, allow updating only a few runtime config values
+    # Allow updating runtime config values
     try:
         web_host = request.form.get("WEB_HOST")
         web_port = request.form.get("WEB_PORT", type=int)

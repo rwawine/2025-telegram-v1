@@ -186,9 +186,9 @@
                     
                     <!-- Профиль пользователя -->
                     <div class="user-profile" id="user-profile">
-                        <div class="user-avatar">ИП</div>
+                        <div class="user-avatar">{{ current_user.username[0] if current_user.is_authenticated else 'A' }}</div>
                         <div>
-                            <p class="user-name">{{ current_user.username if current_user.is_authenticated else 'Иван Петров' }}</p>
+                            <p class="user-name">{{ current_user.username if current_user.is_authenticated else 'Админ' }}</p>
                             <p class="user-role">Администратор</p>
                         </div>
                     </div>

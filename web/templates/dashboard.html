@@ -383,25 +383,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Демо переключатель темы
-    const demoThemeToggle = document.getElementById('demo-theme-toggle');
-    demoThemeToggle?.addEventListener('click', function() {
-        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-        
-        // Update button icon and text
-        const icon = this.querySelector('i');
-        if (newTheme === 'dark') {
-            icon?.classList.replace('fa-moon', 'fa-sun');
-            this.innerHTML = '<i class="fas fa-sun me-2"></i>Светлая тема';
-        } else {
-            icon?.classList.replace('fa-sun', 'fa-moon');
-            this.innerHTML = '<i class="fas fa-moon me-2"></i>Темная тема';
-        }
-    });
 
     // Hover effects for metric cards
     document.querySelectorAll('.metric-card.hover-elevate').forEach(card => {

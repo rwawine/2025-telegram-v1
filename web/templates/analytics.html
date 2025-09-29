@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const ctx3 = document.getElementById('broadcastsChart');
     const ctx4 = document.getElementById('lotteryChart');
 
-    // Simple demo charts fed by stats
+    // Charts for analytics
     new Chart(ctx1, { type: 'bar', data: { labels: ['Всего','Одобрено','На рассмотр.','Отклонено'], datasets: [{ label: 'Участники', data: [stats.total_participants||0, stats.approved_participants||0, stats.pending_participants||0, stats.rejected_participants||0], backgroundColor: ['#0d6efd','#198754','#ffc107','#dc3545'] }] }, options: { responsive: true } });
     new Chart(ctx2, { type: 'doughnut', data: { labels: ['Открыты','В работе','Закрыты'], datasets: [{ data: [stats.open_tickets||0, stats.tickets_in_progress||0, stats.tickets_closed||0], backgroundColor: ['#ffc107','#0dcaf0','#6c757d'] }] }, options: { responsive: true } });
     new Chart(ctx3, { type: 'bar', data: { labels: ['Неудачные'], datasets: [{ label: 'Рассылки', data: [stats.failed_broadcasts||0], backgroundColor: ['#dc3545'] }] }, options: { responsive: true } });

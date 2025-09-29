@@ -156,114 +156,20 @@
             </div>
             {% endfor %}
         {% else %}
-        <!-- Mock данные если нет реальных тикетов -->
-        <div class="support-ticket mb-4">
-            <div class="ticket-header">
-                <h3 class="ticket-title">Проблема с загрузкой фото чека</h3>
-                <div class="d-flex gap-2">
-                    <span class="status-badge status-pending">Открыт</span>
-                    <span class="status-badge priority-high">high</span>
-                    <span class="status-badge status-archived">Техническая проблема</span>
-                </div>
+        <!-- Пустое состояние когда нет тикетов -->
+        <div class="empty-state text-center py-5">
+            <div class="empty-icon mb-3">
+                <i class="fas fa-inbox fa-3x text-muted"></i>
             </div>
-            <div class="ticket-content">
-                <p class="ticket-description">
-                    Не могу загрузить фотографию чека в приложение. Каждый раз появляется ошибка 'Неподдерживаемый формат файла', хотя фото в формате JPG.
-                </p>
-                <div class="ticket-meta">
-                    <span><i class="fas fa-user"></i> Иван Петров</span>
-                    <span><i class="fas fa-clock"></i> 15.03.2024 14:30</span>
-                    <span><i class="fas fa-phone"></i> +7 (999) 123-45-67</span>
-                </div>
-                <div class="ticket-actions">
-                    <button class="btn btn-sm btn-primary">📤 Ответить</button>
-                    <button class="btn btn-sm btn-outline">👁️ Подробнее</button>
-                    <button class="btn btn-sm btn-success">👤✅ Взять в работу</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="support-ticket mb-4">
-            <div class="ticket-header">
-                <h3 class="ticket-title">Вопрос о правилах участия</h3>
-                <div class="d-flex gap-2">
-                    <span class="status-badge status-in-progress">В работе</span>
-                    <span class="status-badge priority-medium">medium</span>
-                    <span class="status-badge status-archived">Общие вопросы</span>
-                </div>
-            </div>
-            <div class="ticket-content">
-                <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
-                    <div class="user-avatar">МС</div>
-                    <div>
-                        <div style="font-weight: 600;">Мария Сидорова</div>
-                        <div style="font-size: 12px; color: var(--color-gray-500);">+7 (999) 765-43-21</div>
-                    </div>
-                </div>
-                
-                <div style="margin-bottom: var(--space-4);">
-                    <strong>Описание проблемы:</strong>
-                    <div style="background: var(--color-gray-50); padding: var(--space-3); border-radius: var(--radius-md); margin-top: var(--space-2);">
-                        Можно ли участвовать в розыгрыше несколько раз с разными чеками?
-                    </div>
-                </div>
-
-                <div style="margin-bottom: var(--space-4);">
-                    <strong>История переписки:</strong>
-                    <div style="border-left: 3px solid var(--color-gray-200); padding-left: var(--space-3); margin-top: var(--space-2);">
-                        <div style="background: var(--color-gray-50); padding: var(--space-3); border-radius: var(--radius-md); margin-bottom: var(--space-2);">
-                            <div style="font-size: 12px; color: var(--color-gray-500); margin-bottom: var(--space-1);">
-                                Мария Сидорова (пользователь) • 14.03.2024 16:45
-                            </div>
-                            <div>Здравствуйте! Можно ли участвовать несколько раз?</div>
-                        </div>
-                        <div style="background: hsl(217, 91%, 60%, 0.1); border: 1px solid hsl(217, 91%, 60%, 0.3); padding: var(--space-3); border-radius: var(--radius-md);">
-                            <div style="font-size: 12px; color: var(--color-gray-500); margin-bottom: var(--space-1);">
-                                Анна Иванова (админ) • 15.03.2024 09:20
-                            </div>
-                            <div>Добрый день! Согласно правилам, один участник может зарегистрироваться только один раз...</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="ticket-actions">
-                    <button class="btn btn-sm btn-primary">📤 Ответить</button>
-                    <button class="btn btn-sm btn-outline">👁️ Подробнее</button>
-                    <button class="btn btn-sm btn-success">Закрыть</button>
-                </div>
-                
-                <div style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-gray-200); font-size: 12px; color: var(--color-gray-500);">
-                    <strong>Создано:</strong> 14.03.2024 16:45 
-                    <strong style="margin-left: var(--space-4);">Обновлено:</strong> 15.03.2024 09:20
-                    <strong style="margin-left: var(--space-4);">Ответственный:</strong> Анна Иванова
-                </div>
-            </div>
-        </div>
-
-        <div class="support-ticket mb-4">
-            <div class="ticket-header">
-                <h3 class="ticket-title">Не приходит СМС с кодом</h3>
-                <div class="d-flex gap-2">
-                    <span class="status-badge status-pending">Открыт</span>
-                    <span class="status-badge priority-urgent">urgent</span>
-                    <span class="status-badge status-archived">Техническая проблема</span>
-                </div>
-            </div>
-            <div class="ticket-content">
-                <p class="ticket-description">
-                    При регистрации не приходит СМС с кодом подтверждения на номер +7 (999) 333-44-55. Проверил в спаме - там тоже нет.
-                </p>
-                <div class="ticket-meta">
-                    <span><i class="fas fa-user"></i> Александр Козлов</span>
-                    <span><i class="fas fa-clock"></i> 15.03.2024 18:15</span>
-                    <span><i class="fas fa-phone"></i> +7 (999) 333-44-55</span>
-                </div>
-                <div class="ticket-actions">
-                    <button class="btn btn-sm btn-primary">📤 Ответить</button>
-                    <button class="btn btn-sm btn-outline">👁️ Подробнее</button>
-                    <button class="btn btn-sm btn-success">👤✅ Взять в работу</button>
-                </div>
-            </div>
+            <h4 class="text-muted">Тикеты не найдены</h4>
+            <p class="text-muted mb-4">
+                {% if request.args.get('search') %}
+                    По вашему запросу "{{ request.args.get('search') }}" ничего не найдено.
+                    <br><a href="{{ url_for('admin.support_tickets') }}" class="text-primary">Показать все тикеты</a>
+                {% else %}
+                    Все тикеты обработаны или еще не созданы.
+                {% endif %}
+            </p>
         </div>
         {% endif %}
     </div>

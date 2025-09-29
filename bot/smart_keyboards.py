@@ -17,7 +17,8 @@ class SmartKeyboardBuilder:
         total_steps: int,
         main_buttons: List[List[str]],
         back_button: Optional[str] = None,
-        help_button: Optional[str] = None
+        help_button: Optional[str] = None,
+        special_buttons: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> ReplyKeyboardMarkup:
         """Создает клавиатуру с индикатором прогресса"""
         
@@ -29,7 +30,16 @@ class SmartKeyboardBuilder:
         
         # Добавляем основные кнопки
         for row in main_buttons:
-            keyboard.append([KeyboardButton(text=btn) for btn in row])
+            keyboard_row = []
+            for btn in row:
+                if special_buttons and btn in special_buttons:
+                    # Создаем специальную кнопку с дополнительными параметрами
+                    params = special_buttons[btn]
+                    keyboard_row.append(KeyboardButton(text=btn, **params))
+                else:
+                    # Обычная кнопка
+                    keyboard_row.append(KeyboardButton(text=btn))
+            keyboard.append(keyboard_row)
         
         # Добавляем служебные кнопки
         service_row = []
@@ -178,7 +188,8 @@ class AdaptiveKeyboards:
             2: {  # Телефон
                 "buttons": [["📞 Отправить мой номер"], ["✏️ Ввести вручную"]],
                 "back": "⬅️ Назад к имени",
-                "help": "❓ Проблемы с номером?"
+                "help": "❓ Проблемы с номером?",
+                "special_buttons": {"📞 Отправить мой номер": {"request_contact": True}}
             },
             3: {  # Карта лояльности
                 "buttons": [],
@@ -202,7 +213,8 @@ class AdaptiveKeyboards:
             total_steps=4,
             main_buttons=config.get("buttons", []),
             back_button=config.get("back"),
-            help_button=config.get("help")
+            help_button=config.get("help"),
+            special_buttons=config.get("special_buttons")
         )
     
     @staticmethod

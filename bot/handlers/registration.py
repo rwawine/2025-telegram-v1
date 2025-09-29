@@ -291,14 +291,79 @@ class RegistrationHandler:
 
     # Auxiliary handlers
     async def handle_contact(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик контактов (отправленного номера телефона)"""
+        from bot.context_manager import get_context_manager
+        context_manager = get_context_manager()
+        
         try:
+            # Проверяем, что контакт содержит номер телефона
+            if not message.contact or not message.contact.phone_number:
+                if context_manager:
+                    await context_manager.increment_error_count(message.from_user.id)
+                await message.answer(
+                    "Не удалось получить номер телефона из контакта.\n"
+                    "Попробуйте еще раз или введите номер вручную.",
+                    reply_markup=get_phone_input_keyboard()
+                )
+                return
+            
             phone = message.contact.phone_number
-        except Exception:
-            await message.answer("Не удалось получить номер. Введите вручную", reply_markup=get_phone_input_keyboard())
-            return
-        await state.update_data(phone_number=phone)
-        await state.set_state(RegistrationStates.enter_loyalty_card)
-        await message.answer("Введите номер карты лояльности", reply_markup=get_loyalty_card_keyboard())
+            
+            # Убираем лишние символы и приводим к стандартному формату
+            if not phone.startswith('+'):
+                phone = '+' + phone
+                
+            # Обновляем контекст
+            if context_manager:
+                await context_manager.update_context(
+                    message.from_user.id,
+                    UserContext.REGISTRATION,
+                    UserAction.CONTACT_SHARE
+                )
+            
+            # Сохраняем номер
+            await state.update_data(phone_number=phone)
+            
+            # Переходим к следующему шагу
+            await state.set_state(RegistrationStates.enter_loyalty_card)
+            
+            # Получаем умные сообщения
+            reg_messages = smart_messages.get_registration_messages()
+            phone_success_msg = reg_messages.get("phone_success", {
+                "text": "📱 **Номер принят!**\n\n🎯 Переходим к карте лояльности...",
+                "style": "encouraging"
+            })
+            loyalty_msg = reg_messages.get("start_loyalty_card", {
+                "text": (
+                    "🎯 **Шаг 3 из 4: Карта лояльности**\n\n"
+                    "💳 Введите номер карты лояльности\n"
+                    "📝 **Формат:** латинские буквы и цифры, 6–20 символов\n"
+                    "✅ **Пример:** ABC12345\n\n"
+                    "❓ *Карту можно найти в приложении или на физической карте*"
+                )
+            })
+            
+            # Отправляем подтверждение
+            await message.answer(
+                phone_success_msg["text"],
+                parse_mode="Markdown"
+            )
+            
+            # Переходим к карте лояльности
+            await message.answer(
+                smart_messages.format_message_with_progress(loyalty_msg["text"], 3),
+                reply_markup=get_loyalty_card_keyboard(),
+                parse_mode="Markdown"
+            )
+            
+        except Exception as e:
+            if context_manager:
+                await context_manager.increment_error_count(message.from_user.id)
+            await message.answer(
+                "Произошла ошибка при обработке контакта.\n"
+                "Попробуйте ввести номер телефона вручную в формате +79001234567",
+                reply_markup=get_phone_input_keyboard()
+            )
 
     async def back_to_menu(self, message: types.Message, state: FSMContext) -> None:
         await state.clear()
