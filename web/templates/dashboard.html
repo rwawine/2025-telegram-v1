@@ -41,7 +41,9 @@
                 <div class="quick-action-content">
                     <h3>Новые заявки</h3>
                     <p>Модерировать заявки участников</p>
-                    <span class="badge badge-notification">12</span>
+                    {% if stats.by_status.get('pending', 0) > 0 %}
+                    <span class="badge badge-notification">{{ stats.by_status.get('pending', 0) }}</span>
+                    {% endif %}
                 </div>
             </a>
             

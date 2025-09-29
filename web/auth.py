@@ -33,6 +33,7 @@ class AdminUser(UserMixin):
     """Represents an authenticated admin user."""
     def __init__(self, username: str) -> None:
         self.id = username
+        self.username = username
 
 
 def init_login_manager(app, credentials: AdminCredentials) -> AdminCredentials:
