@@ -179,6 +179,30 @@ class AdminDatabase:
         with self._connect() as conn:
             return conn.execute(query, params).fetchall()
 
+    def iter_winners(self, run_id: Optional[int] = None, chunk_size: int = 5000):
+        """Yield winners rows in chunks to support streaming exports."""
+        base_query = (
+            "SELECT w.id, w.run_id, w.participant_id, p.full_name, p.phone_number, p.username, w.position, w.lottery_date, w.prize_description, "
+            "lr.seed, lr.executed_at as draw_date, lr.id as draw_number, "
+            "substr(lr.seed, 1, 32) as seed_hash "
+            "FROM winners w "
+            "JOIN participants p ON p.id = w.participant_id "
+            "JOIN lottery_runs lr ON lr.id = w.run_id"
+        )
+        where_clause = " WHERE w.run_id=?" if run_id else ""
+        offset = 0
+        with self._connect() as conn:
+            while True:
+                rows = conn.execute(
+                    f"{base_query}{where_clause} ORDER BY w.lottery_date DESC, w.position ASC LIMIT ? OFFSET ?",
+                    ((run_id,) + (chunk_size, offset)) if run_id else (chunk_size, offset),
+                ).fetchall()
+                if not rows:
+                    break
+                for row in rows:
+                    yield row
+                offset += chunk_size
+
     def list_support_tickets(
         self,
         status: Optional[str] = None,
@@ -220,12 +244,36 @@ class AdminDatabase:
                 (message, len(participant_ids), media_path, media_type, media_caption or message),
             )
             job_id = cursor.lastrowid
+
+            # Resolve telegram_ids for participant_ids
+            if participant_ids:
+                placeholders = ",".join("?" for _ in participant_ids)
+                rows = conn.execute(
+                    f"SELECT id, telegram_id FROM participants WHERE id IN ({placeholders})",
+                    list(participant_ids),
+                ).fetchall()
+                id_to_telegram = {row[0]: row[1] for row in rows}
+            else:
+                id_to_telegram = {}
+
+            # Insert into queue with telegram_id for faster sending
             conn.executemany(
                 """
-                INSERT INTO broadcast_queue (job_id, participant_id, message_text, media_path, media_type, media_caption, status)
-                VALUES (?, ?, ?, ?, ?, ?, 'pending')
+                INSERT INTO broadcast_queue (job_id, participant_id, telegram_id, message_text, media_path, media_type, media_caption, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
                 """,
-                [(job_id, pid, message, media_path, media_type, media_caption or message) for pid in participant_ids],
+                [
+                    (
+                        job_id,
+                        pid,
+                        id_to_telegram.get(pid),
+                        message,
+                        media_path,
+                        media_type,
+                        media_caption or message,
+                    )
+                    for pid in participant_ids
+                ],
             )
             conn.commit()
             return job_id
@@ -237,6 +285,31 @@ class AdminDatabase:
                 (job_id,),
             ).fetchall()
         return [row[0] for row in rows]
+
+    def get_broadcast_recipient_telegram_ids(self, job_id: int) -> List[int]:
+        """Return pending recipient telegram IDs for a given job."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT telegram_id FROM broadcast_queue WHERE job_id=? AND status='pending' AND telegram_id IS NOT NULL",
+                (job_id,),
+            ).fetchall()
+        return [row[0] for row in rows]
+
+    def mark_broadcast_sent(self, job_id: int, telegram_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE broadcast_queue SET status='sent' WHERE job_id=? AND telegram_id=?",
+                (job_id, telegram_id),
+            )
+            conn.commit()
+
+    def mark_broadcast_failed(self, job_id: int, telegram_id: int) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE broadcast_queue SET status='failed', attempts=COALESCE(attempts,0)+1 WHERE job_id=? AND telegram_id=?",
+                (job_id, telegram_id),
+            )
+            conn.commit()
 
     def update_broadcast_status(self, job_id: int, status: str) -> None:
         with self._connect() as conn:
@@ -318,6 +391,39 @@ class AdminDatabase:
             total = conn.execute(count_query, count_params).fetchone()[0]
         return rows, total
 
+    def delete_participants_cascade(self, participant_ids: Sequence[int]) -> int:
+        """Delete participants and all related data safely.
+        Returns number of participants deleted.
+        """
+        if not participant_ids:
+            return 0
+        placeholders = ','.join('?' * len(participant_ids))
+        with self._connect() as conn:
+            # Delete support ticket messages for tickets of these participants
+            ticket_rows = conn.execute(
+                f"SELECT id FROM support_tickets WHERE participant_id IN ({placeholders})",
+                list(participant_ids),
+            ).fetchall()
+            ticket_ids = [row[0] for row in ticket_rows]
+            if ticket_ids:
+                ticket_ph = ','.join('?' * len(ticket_ids))
+                conn.execute(
+                    f"DELETE FROM support_ticket_messages WHERE ticket_id IN ({ticket_ph})",
+                    ticket_ids,
+                )
+                conn.execute(
+                    f"DELETE FROM support_tickets WHERE id IN ({ticket_ph})",
+                    ticket_ids,
+                )
+            # Delete winners referencing these participants
+            conn.execute(f"DELETE FROM winners WHERE participant_id IN ({placeholders})", list(participant_ids))
+            # Delete broadcast queue rows for these participants (by participant_id)
+            conn.execute(f"DELETE FROM broadcast_queue WHERE participant_id IN ({placeholders})", list(participant_ids))
+            # Finally delete participants
+            conn.execute(f"DELETE FROM participants WHERE id IN ({placeholders})", list(participant_ids))
+            conn.commit()
+        return len(participant_ids)
+
     def clear_participants(self) -> None:
         """Dangerous: wipe participants and related data (winners, queues, tickets)."""
         with self._connect() as conn:
@@ -334,13 +440,13 @@ class AdminDatabase:
     def clear_all_database(self) -> None:
         """EXTREMELY DANGEROUS: Полная очистка всей базы данных."""
         with self._connect() as conn:
-            # Удаляем все данные из всех таблиц
+            # Удаляем все данные из всех таблиц (только существующие)
             conn.execute("DELETE FROM winners")
             conn.execute("DELETE FROM support_ticket_messages")
             conn.execute("DELETE FROM support_tickets")
             conn.execute("DELETE FROM broadcast_queue")
             conn.execute("DELETE FROM broadcast_jobs")
-            conn.execute("DELETE FROM lottery_draws")
+            conn.execute("DELETE FROM lottery_runs")
             conn.execute("DELETE FROM participants")
             conn.commit()
 

@@ -88,6 +88,7 @@ SCHEMA_SQL: tuple[str, ...] = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_broadcast_status ON broadcast_queue(status, created_at);",
     "CREATE INDEX IF NOT EXISTS idx_broadcast_job ON broadcast_queue(job_id);",
+    "CREATE INDEX IF NOT EXISTS idx_broadcast_queue_job_tg ON broadcast_queue(job_id, telegram_id);",
     """
     CREATE TABLE IF NOT EXISTS support_tickets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

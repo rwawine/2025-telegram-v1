@@ -180,14 +180,8 @@ def delete_selected_participants():
 
     db = _get_admin_db()
     try:
-        with db._connect() as conn:
-            placeholders = ",".join("?" for _ in participant_ids)
-            # Delete related data first
-            conn.execute(f"DELETE FROM winners WHERE participant_id IN ({placeholders})", participant_ids)
-            conn.execute(f"DELETE FROM support_tickets WHERE telegram_id IN (SELECT telegram_id FROM participants WHERE id IN ({placeholders}))", participant_ids)
-            conn.execute(f"DELETE FROM participants WHERE id IN ({placeholders})", participant_ids)
-            conn.commit()
-        flash(f"Удалено участников: {len(participant_ids)}", "success")
+        deleted = db.delete_participants_cascade([int(pid) for pid in participant_ids])
+        flash(f"Удалено участников: {deleted}", "success")
     except Exception as e:
         current_app.logger.exception("Ошибка удаления участников")
         flash(f"Не удалось удалить участников: {e}", "error")
@@ -432,18 +426,33 @@ def remove_broadcast_alias(broadcast_id: int):
 def export_participants():
     db = _get_admin_db()
     status = request.args.get("status")
-    participants, _ = db.list_participants(status=status, page=1, per_page=1_000_000)
-    si = StringIO()
-    writer = csv.writer(si)
-    writer.writerow(["id", "full_name", "phone_number", "username", "telegram_id", "loyalty_card", "status", "registration_date"])
-    for p in participants:
-        writer.writerow([p.id, p.full_name, p.phone_number, p.username or "", p.telegram_id, p.loyalty_card, p.status, p.registration_date])
-    output = si.getvalue().encode("utf-8-sig")
-    from flask import make_response
-    response = make_response(output)
-    response.headers["Content-Type"] = "text/csv; charset=utf-8"
-    response.headers["Content-Disposition"] = "attachment; filename=participants.csv"
-    return response
+    # Stream output to avoid loading all rows into memory
+    def generate():
+        yield "\ufeff"  # UTF-8 BOM for Excel
+        yield ",".join(["id","full_name","phone_number","username","telegram_id","loyalty_card","status","registration_date"]) + "\n"
+        page = 1
+        per_page = 5000
+        while True:
+            chunk, total = db.list_participants(status=status, page=page, per_page=per_page)
+            if not chunk:
+                break
+            for p in chunk:
+                row = [
+                    str(p.id),
+                    (p.full_name or "").replace("\n"," ").replace("\r"," "),
+                    p.phone_number or "",
+                    (p.username or ""),
+                    str(p.telegram_id or ""),
+                    p.loyalty_card or "",
+                    p.status or "",
+                    p.registration_date or "",
+                ]
+                yield ",".join([f'"{v.replace("\"","\"\"")}"' if "," in v or '"' in v else v for v in row]) + "\n"
+            page += 1
+    from flask import Response
+    return Response(generate(), mimetype="text/csv; charset=utf-8", headers={
+        "Content-Disposition": "attachment; filename=participants.csv"
+    })
 
 
 @admin_bp.route("/winners/export")
@@ -451,24 +460,26 @@ def export_participants():
 def export_winners():
     db = _get_admin_db()
     run_id = request.args.get("run_id", type=int)
-    winners = db.list_winners(run_id=run_id, limit=100000)
-    
-    # Convert sqlite3.Row objects to dictionaries for easier access
-    winners = [dict(w) if hasattr(w, 'keys') else w for w in winners]
-    
-    si = StringIO()
-    writer = csv.writer(si)
-    writer.writerow(["winner_id", "run_id", "participant_id", "full_name", "username", "phone_number", "position", "draw_number", "draw_date", "seed_hash"])
-    for w in winners:
-        writer.writerow([
-            w["id"], w["run_id"], w["participant_id"], w["full_name"], w["username"], w["phone_number"], w["position"], w.get("draw_number"), w.get("draw_date"), w.get("seed_hash")
-        ])
-    output = si.getvalue().encode("utf-8-sig")
-    from flask import make_response
-    response = make_response(output)
-    response.headers["Content-Type"] = "text/csv; charset=utf-8"
-    response.headers["Content-Disposition"] = "attachment; filename=winners.csv"
-    return response
+    def generate():
+        yield "\ufeff"
+        yield ",".join(["winner_id","run_id","participant_id","full_name","username","phone_number","position","draw_number","draw_date","seed_hash"]) + "\n"
+        for w in db.iter_winners(run_id=run_id, chunk_size=5000):
+            wd = dict(w)
+            row = [
+                str(wd.get("id","")), str(wd.get("run_id","")), str(wd.get("participant_id","")),
+                (wd.get("full_name","") or "").replace("\n"," ").replace("\r"," "),
+                wd.get("username","") or "",
+                wd.get("phone_number","") or "",
+                str(wd.get("position","")),
+                str(wd.get("draw_number","")),
+                str(wd.get("draw_date","")),
+                wd.get("seed_hash","") or "",
+            ]
+            yield ",".join([f'"{v.replace("\"","\"\"")}"' if "," in v or '"' in v else v for v in row]) + "\n"
+    from flask import Response
+    return Response(generate(), mimetype="text/csv; charset=utf-8", headers={
+        "Content-Disposition": "attachment; filename=winners.csv"
+    })
 
 
 @admin_bp.route("/support_tickets")
@@ -782,14 +793,17 @@ def create_broadcast():
     try:
         bot_service = current_app.config.get("BROADCAST_SERVICE")
         if bot_service:
+            # Fetch telegram IDs from queue for this job
+            recipient_tg_ids = db.get_broadcast_recipient_telegram_ids(job_id)
             submit_coroutine(bot_service.send_broadcast(
-                message_text, 
-                participant_ids, 
-                media_path=media_path, 
-                media_type=media_type, 
-                caption=media_caption
+                message_text,
+                recipient_tg_ids,
+                media_path=media_path,
+                media_type=media_type,
+                caption=media_caption,
+                job_id=job_id,
             ))
-            flash(f"Рассылка '{title}' создана и отправляется ({len(participant_ids)} получателей)", "success")
+            flash(f"Рассылка '{title}' создана и отправляется ({len(recipient_tg_ids)} получателей)", "success")
         else:
             flash(f"Рассылка '{title}' создана ({len(participant_ids)} получателей), но сервис рассылки недоступен", "warning")
     except Exception as e:
@@ -1044,22 +1058,23 @@ def send_broadcast(broadcast_id: int):
         # Update status to sending
         db.update_broadcast_status(broadcast_id, "sending")
         
-        # Get recipients
-        participant_ids = db.get_broadcast_recipients(broadcast_id)
+        # Get recipients (telegram IDs)
+        recipient_tg_ids = db.get_broadcast_recipient_telegram_ids(broadcast_id)
         
-        if participant_ids:
+        if recipient_tg_ids:
             # Start broadcast sending if BroadcastService is available
             bot_service = current_app.config.get("BROADCAST_SERVICE")
             if bot_service:
                 try:
                     submit_coroutine(bot_service.send_broadcast(
                         broadcast["message_text"], 
-                        participant_ids, 
+                        recipient_tg_ids, 
                         media_path=broadcast.get("media_path"), 
                         media_type=broadcast.get("media_type"), 
-                        caption=broadcast.get("media_caption")
+                        caption=broadcast.get("media_caption"),
+                        job_id=broadcast_id,
                     ))
-                    flash(f"Рассылка начала отправку ({len(participant_ids)} получателей)", "success")
+                    flash(f"Рассылка начала отправку ({len(recipient_tg_ids)} получателей)", "success")
                 except Exception as e:
                     current_app.logger.exception("Ошибка запуска рассылки")
                     db.update_broadcast_status(broadcast_id, "failed")
@@ -1175,6 +1190,7 @@ def get_broadcast_api(broadcast_id: int):
 
 
 @admin_bp.route("/uploads/<path:filename>")
+@login_required
 def serve_upload(filename: str):
     import os
     import logging

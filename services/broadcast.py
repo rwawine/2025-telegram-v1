@@ -10,7 +10,12 @@ from typing import Iterable, List, Dict, Any, Optional, Union
 from aiogram import Bot
 from aiogram.types import InputFile
 
-from database.repositories import store_broadcast_results
+from database.repositories import (
+    store_broadcast_results,
+    mark_broadcast_sent,
+    mark_broadcast_failed,
+    set_broadcast_job_completed,
+)
 
 
 class MediaType(Enum):
@@ -28,12 +33,13 @@ class BroadcastService:
         self.retry_attempts = retry_attempts
 
     async def send_broadcast(
-        self, 
-        message: str, 
-        recipient_ids: Iterable[int], 
-        media_path: Optional[str] = None, 
+        self,
+        message: str,
+        recipient_ids: Iterable[int],
+        media_path: Optional[str] = None,
         media_type: Optional[str] = None,
-        caption: Optional[str] = None
+        caption: Optional[str] = None,
+        job_id: Optional[int] = None,
     ) -> None:
         """
         Send broadcast message with optional media attachment.
@@ -48,30 +54,38 @@ class BroadcastService:
         recipients = list(recipient_ids)
         for start in range(0, len(recipients), self.batch_size):
             batch = recipients[start : start + self.batch_size]
-            await self._send_batch(message, batch, media_path, media_type, caption)
+            await self._send_batch(message, batch, media_path, media_type, caption, job_id=job_id)
             await asyncio.sleep(1.0)
+        # Mark job completed when all batches processed
+        if job_id is not None:
+            try:
+                await set_broadcast_job_completed(job_id)
+            except Exception:
+                pass
 
     async def _send_batch(
-        self, 
-        message: str, 
-        batch: List[int], 
-        media_path: Optional[str] = None, 
+        self,
+        message: str,
+        batch: List[int],
+        media_path: Optional[str] = None,
         media_type: Optional[str] = None,
-        caption: Optional[str] = None
+        caption: Optional[str] = None,
+        job_id: Optional[int] = None,
     ) -> None:
         tasks = [
-            self._send_with_retry(recipient_id, message, media_path, media_type, caption) 
+            self._send_with_retry(recipient_id, message, media_path, media_type, caption, job_id=job_id)
             for recipient_id in batch
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _send_with_retry(
-        self, 
-        telegram_id: int, 
-        message: str, 
-        media_path: Optional[str] = None, 
+        self,
+        telegram_id: int,
+        message: str,
+        media_path: Optional[str] = None,
         media_type: Optional[str] = None,
-        caption: Optional[str] = None
+        caption: Optional[str] = None,
+        job_id: Optional[int] = None,
     ) -> None:
         for attempt in range(self.retry_attempts):
             try:
@@ -79,10 +93,22 @@ class BroadcastService:
                     await self._send_media(telegram_id, media_path, media_type, caption or message)
                 else:
                     await self.bot.send_message(telegram_id, message)
+                # Mark sent in queue if job_id provided
+                if job_id is not None:
+                    try:
+                        await mark_broadcast_sent(job_id, telegram_id)
+                    except Exception:
+                        pass
                 return
             except Exception:
                 await asyncio.sleep(2 ** attempt)
-
+        # Mark failed in queue if job_id provided; fallback to legacy store
+        if job_id is not None:
+            try:
+                await mark_broadcast_failed(job_id, telegram_id)
+                return
+            except Exception:
+                pass
         await store_broadcast_results([telegram_id], message, status="failed")
         
     async def _send_media(

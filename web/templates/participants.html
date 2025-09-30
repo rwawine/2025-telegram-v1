@@ -7,42 +7,38 @@
 {% block content %}
 <!-- Фильтры -->
 <div class="card mb-6">
-    <div class="card-header">
-        <h2 class="card-title">Фильтры и поиск</h2>
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h2 class="card-title mb-0">Фильтры и поиск</h2>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline" data-bs-toggle="modal" data-bs-target="#importModal">⬆️ Импорт</button>
+            <a class="btn btn-outline" href="{{ url_for('admin.export_participants', status=current_status) }}">⬇️ Экспорт</a>
+        </div>
     </div>
     <div class="card-body">
-        <form method="GET" class="grid grid-cols-4 gap-4">
-            <div class="form-group">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-12 col-md-6 col-lg-4">
                 <label class="form-label">Поиск</label>
-                <input type="text" class="form-control" name="search" 
-                       value="{{ search_query or '' }}" placeholder="Имя, телефон, email...">
+                <input type="text" class="form-control" name="search" value="{{ search_query or '' }}" placeholder="Имя, телефон, email...">
             </div>
-            <div class="form-group">
+            <div class="col-6 col-md-3 col-lg-2">
                 <label class="form-label">Статус</label>
                 <select name="status" class="form-control">
-                    <option value="">Все статусы</option>
+                    <option value="">Все</option>
                     <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>Ожидает</option>
                     <option value="approved" {% if current_status == 'approved' %}selected{% endif %}>Одобрено</option>
                     <option value="rejected" {% if current_status == 'rejected' %}selected{% endif %}>Отклонено</option>
                 </select>
             </div>
-            <div class="form-group">
+            <div class="col-6 col-md-3 col-lg-2">
                 <label class="form-label">На странице</label>
                 <select name="per_page" class="form-control">
-                    <option value="25">25</option>
-                    <option value="50" selected>50</option>
-                    <option value="100">100</option>
+                    <option value="25" {% if per_page==25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if per_page==50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if per_page==100 %}selected{% endif %}>100</option>
                 </select>
             </div>
-            <div class="form-group d-flex align-items-end">
-                <button type="submit" class="btn btn-primary">🔍 Найти</button>
-                <button type="button" class="btn btn-outline ms-2" data-bs-toggle="modal" data-bs-target="#importModal">⬆️ Импорт</button>
-                <a class="btn btn-outline ms-2" href="{{ url_for('admin.export_participants', status=current_status) }}">⬇️ Экспорт</a>
-                <button type="button" class="btn btn-danger ms-2" 
-                        data-bs-toggle="modal" 
-                        data-bs-target="#clearAllModal">
-                    🗑️ Очистить всех
-                </button>
+            <div class="col-12 col-md-12 col-lg-4 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">🔍 Найти</button>
             </div>
         </form>
     </div>
@@ -136,13 +132,14 @@
                         <td>
                             {% if p.photo_path %}
                                 <div class="d-flex align-items-center">
-                                    <img src="{{ url_for('admin.serve_upload', filename=p.photo_path.split('/')[-1]) }}" 
+                                    {% set photo_basename = p.photo_path.split('/')[-1].split('\\')[-1] %}
+                                    <img src="{{ url_for('admin.serve_upload', filename=photo_basename) }}" 
                                          alt="Фото" 
                                          class="photo-preview me-2" 
                                          style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px; cursor: pointer;"
                                          data-bs-toggle="modal" 
                                          data-bs-target="#photoModal"
-                                         data-photo-src="{{ url_for('admin.serve_upload', filename=p.photo_path.split('/')[-1]) }}"
+                                         data-photo-src="{{ url_for('admin.serve_upload', filename=photo_basename) }}"
                                          onclick="showPhotoModal(this)">
                                     <span class="status-badge status-approved" style="font-size: 11px;">Есть</span>
                                 </div>
@@ -327,16 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Сброс при закрытии модалки
-        const clearAllModal = document.getElementById('clearAllModal');
-        if (clearAllModal) {
-            clearAllModal.addEventListener('hidden.bs.modal', function() {
-                confirmWordInput.value = '';
-                confirmClearAllButton.disabled = true;
-                confirmClearAllButton.classList.remove('btn-danger');
-                confirmClearAllButton.classList.add('btn-secondary');
-            });
-        }
+        // Clear All Modal удалён
     }
 
     // Photo modal function
@@ -376,62 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
-<!-- Clear All Modal -->
-<div class="modal fade" id="clearAllModal" tabindex="-1" aria-labelledby="clearAllModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-danger">
-            <form method="POST" action="{{ url_for('admin.clear_participants') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title" id="clearAllModalLabel">
-                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
-                        Очистить всех участников
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-danger mb-3">
-                        <h6 class="alert-heading">
-                            <i class="fa-solid fa-exclamation-circle me-2"></i>
-                            КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ!
-                        </h6>
-                        <p class="mb-2"><strong>Это действие удалит ВСЕХ участников ({{ total or 0 }}) и связанные данные:</strong></p>
-                        <ul class="mb-2">
-                            <li>✗ Все заявки участников ({{ total or 0 }} записей)</li>
-                            <li>✗ Список победителей</li>
-                            <li>✗ Тикеты поддержки</li>
-                            <li>✗ Очередь рассылок</li>
-                        </ul>
-                        <p class="mb-0 fw-bold text-danger">⚠️ Восстановление данных будет НЕВОЗМОЖНО!</p>
-                    </div>
-                    <div class="mb-3">
-                        <label for="confirmWord" class="form-label">
-                            Для подтверждения введите слово: <strong class="text-danger">"удалить"</strong>
-                        </label>
-                        <input type="text" 
-                               class="form-control" 
-                               id="confirmWord" 
-                               name="confirm_word" 
-                               required 
-                               autocomplete="off"
-                               placeholder="Введите: удалить">
-                        <div class="form-text text-danger">
-                            ⚠️ Регистр не учитывается. Действие необратимо!
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="fa-solid fa-xmark me-2"></i>Отмена
-                    </button>
-                    <button type="submit" class="btn btn-secondary" id="confirmClearAll" disabled>
-                        <i class="fa-solid fa-trash-can me-2"></i>Удалить всех
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<!-- Clear All Modal удалён по требованию -->
 
 <!-- Photo Modal -->
 <div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">

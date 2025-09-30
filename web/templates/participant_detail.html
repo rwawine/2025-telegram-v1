@@ -225,7 +225,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                 }
 
-                new bootstrap.Modal(confirmModal).show();
+                // Показываем модалку через data API, чтобы избежать двойной инициализации
+                const triggerBtn = document.createElement('button');
+                triggerBtn.type = 'button';
+                triggerBtn.style.display = 'none';
+                triggerBtn.setAttribute('data-bs-toggle', 'modal');
+                triggerBtn.setAttribute('data-bs-target', '#confirmationModal');
+                document.body.appendChild(triggerBtn);
+                triggerBtn.click();
+                triggerBtn.remove();
             } else {
                 statusForm.submit();
             }

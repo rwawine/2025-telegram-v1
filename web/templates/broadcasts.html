@@ -309,8 +309,38 @@ document.addEventListener('alpine:init', () => {
         viewModal: null,
 
         init() {
-            this.createModal = new bootstrap.Modal(document.getElementById('createEditModal'));
-            this.viewModal = new bootstrap.Modal(document.getElementById('viewModal'));
+            // Избегаем ручной инициализации, чтобы не дублировать с data API
+            this.createModal = {
+                show: () => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.style.display = 'none';
+                    btn.setAttribute('data-bs-toggle', 'modal');
+                    btn.setAttribute('data-bs-target', '#createEditModal');
+                    document.body.appendChild(btn);
+                    btn.click();
+                    btn.remove();
+                },
+                hide: () => {
+                    const modalEl = document.getElementById('createEditModal');
+                    if (modalEl) {
+                        const instance = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+                        instance.hide();
+                    }
+                }
+            };
+            this.viewModal = {
+                show: () => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.style.display = 'none';
+                    btn.setAttribute('data-bs-toggle', 'modal');
+                    btn.setAttribute('data-bs-target', '#viewModal');
+                    document.body.appendChild(btn);
+                    btn.click();
+                    btn.remove();
+                }
+            };
         },
 
         audienceClass(target) {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from flask import Flask, render_template, redirect, url_for
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Histogram
 from flask_caching import Cache
 from flask_wtf.csrf import CSRFProtect
 
@@ -15,6 +16,19 @@ from web.performance_middleware import init_performance_middleware
 
 cache = Cache()
 csrf = CSRFProtect()
+
+# Prometheus metrics
+REQUEST_LATENCY = Histogram(
+    "http_request_latency_seconds",
+    "HTTP request latency",
+    ["method", "path"],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5),
+)
+REQUEST_ERRORS = Counter(
+    "http_request_errors_total",
+    "Total number of 5xx responses",
+    ["method", "path"],
+)
 
 
 def create_app(config, testing=False) -> Flask:
@@ -85,6 +99,10 @@ def create_app(config, testing=False) -> Flask:
     
     @app.errorhandler(500)
     def internal_error(error):
+        try:
+            REQUEST_ERRORS.labels(method=getattr(getattr(app, 'request_class', None), 'method', 'NA'), path='500').inc()
+        except Exception:
+            pass
         app.logger.error(f"Internal server error: {error}")
         return render_template('500.html'), 500
     
@@ -93,5 +111,25 @@ def create_app(config, testing=False) -> Flask:
     def metrics():
         data = generate_latest()
         return data, 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
+    # Wrap all requests to measure latency
+    @app.before_request
+    def _before_metrics():
+        from flask import request, g
+        g._metrics_start = g.get('_metrics_start', None) or __import__('time').time()
+
+    @app.after_request
+    def _after_metrics(response):
+        try:
+            from flask import request, g
+            start = getattr(g, '_metrics_start', None)
+            if start is not None:
+                duration = __import__('time').time() - start
+                # Use route rule or path
+                path = getattr(request.url_rule, 'rule', request.path)
+                REQUEST_LATENCY.labels(method=request.method, path=path).observe(duration)
+        except Exception:
+            pass
+        return response
 
     return app
