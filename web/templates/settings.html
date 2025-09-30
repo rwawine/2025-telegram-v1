@@ -50,6 +50,130 @@
             </div>
         </form>
     </div>
+    
+    <!-- Опасная зона -->
+    <div class="col-lg-8 mt-4">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>Опасная зона
+            </div>
+            <div class="card-body">
+                <h5 class="text-danger">⚠️ Критические операции</h5>
+                <p class="text-muted">Эти действия необратимы и удалят все данные из системы</p>
+                
+                <div class="d-grid gap-3 mt-3">
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#clearDatabaseModal">
+                        <i class="fa-solid fa-database me-2"></i>
+                        🗑️ Полная очистка базы данных
+                    </button>
+                </div>
+                
+                <div class="alert alert-warning mt-3 mb-0">
+                    <strong>Внимание!</strong> Очистка БД удалит:
+                    <ul class="mb-0 mt-2">
+                        <li>Всех участников</li>
+                        <li>Все розыгрыши и победителей</li>
+                        <li>Все тикеты поддержки</li>
+                        <li>Историю рассылок</li>
+                        <li>Все настройки и данные</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- Modal для очистки БД -->
+<div class="modal fade" id="clearDatabaseModal" tabindex="-1" aria-labelledby="clearDatabaseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <form method="POST" action="{{ url_for('admin.clear_database') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="clearDatabaseModalLabel">
+                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                        Полная очистка базы данных
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading">
+                            <i class="fa-solid fa-skull-crossbones me-2"></i>
+                            КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ!
+                        </h5>
+                        <p><strong>Это действие полностью уничтожит все данные в системе:</strong></p>
+                        <ul>
+                            <li>🗑️ Все участники будут удалены</li>
+                            <li>🎰 Все розыгрыши и победители будут удалены</li>
+                            <li>💬 Все тикеты поддержки будут удалены</li>
+                            <li>📨 Вся история рассылок будет удалена</li>
+                        </ul>
+                        <p class="mb-0"><strong>Восстановление данных будет НЕВОЗМОЖНО!</strong></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirmWordDatabase" class="form-label">
+                            Для подтверждения введите фразу: <strong class="text-danger">"очистить базу"</strong>
+                        </label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="confirmWordDatabase" 
+                               name="confirm_word" 
+                               required 
+                               autocomplete="off"
+                               placeholder="Введите: очистить базу">
+                        <div class="form-text text-danger">
+                            ⚠️ Регистр не учитывается. Убедитесь, что вы понимаете последствия!
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fa-solid fa-xmark me-2"></i>Отмена
+                    </button>
+                    <button type="submit" class="btn btn-danger" id="confirmClearDatabase" disabled>
+                        <i class="fa-solid fa-trash-can me-2"></i>
+                        Удалить всю базу данных
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Включение кнопки очистки БД при правильном вводе
+    const confirmInput = document.getElementById('confirmWordDatabase');
+    const confirmButton = document.getElementById('confirmClearDatabase');
+    
+    if (confirmInput && confirmButton) {
+        confirmInput.addEventListener('input', function() {
+            const isValid = this.value.trim().toLowerCase() === 'очистить базу';
+            confirmButton.disabled = !isValid;
+            
+            if (isValid) {
+                confirmButton.classList.remove('btn-secondary');
+                confirmButton.classList.add('btn-danger');
+            } else {
+                confirmButton.classList.remove('btn-danger');
+                confirmButton.classList.add('btn-secondary');
+            }
+        });
+        
+        // Сброс при закрытии модалки
+        document.getElementById('clearDatabaseModal').addEventListener('hidden.bs.modal', function() {
+            confirmInput.value = '';
+            confirmButton.disabled = true;
+            confirmButton.classList.remove('btn-danger');
+            confirmButton.classList.add('btn-secondary');
+        });
+    }
+});
+</script>
 {% endblock %}
 

@@ -330,6 +330,19 @@ class AdminDatabase:
             conn.execute("UPDATE broadcast_jobs SET total_recipients=0, started_at=NULL, finished_at=NULL, status='draft'")
             conn.execute("DELETE FROM participants")
             conn.commit()
+    
+    def clear_all_database(self) -> None:
+        """EXTREMELY DANGEROUS: Полная очистка всей базы данных."""
+        with self._connect() as conn:
+            # Удаляем все данные из всех таблиц
+            conn.execute("DELETE FROM winners")
+            conn.execute("DELETE FROM support_ticket_messages")
+            conn.execute("DELETE FROM support_tickets")
+            conn.execute("DELETE FROM broadcast_queue")
+            conn.execute("DELETE FROM broadcast_jobs")
+            conn.execute("DELETE FROM lottery_draws")
+            conn.execute("DELETE FROM participants")
+            conn.commit()
 
     def get_moderation_activity(self) -> Dict[str, int]:
         with self._connect() as conn:

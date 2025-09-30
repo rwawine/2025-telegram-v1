@@ -13,10 +13,28 @@ def validate_full_name(value: str) -> bool:
     stripped = value.strip()
     if not (2 <= len(stripped) <= 100):
         return False
+    
+    # Проверяем, что используются только латиница, кириллица и разрешенные символы
+    allowed_ranges = [
+        (0x0041, 0x005A),  # A-Z
+        (0x0061, 0x007A),  # a-z
+        (0x0410, 0x044F),  # А-Я, а-я (кириллица)
+        (0x0401, 0x0401),  # Ё
+        (0x0451, 0x0451),  # ё
+        (0x00C0, 0x00FF),  # Расширенная латиница (àáâ и т.д.)
+    ]
+    
     for char in stripped:
-        if char.isalpha() or char in {" ", "-", "'"}:
+        if char in {" ", "-", "'"}:
             continue
-        return False
+        
+        # Проверяем, входит ли символ в разрешенные диапазоны
+        char_code = ord(char)
+        is_allowed = any(start <= char_code <= end for start, end in allowed_ranges)
+        
+        if not is_allowed:
+            return False
+    
     return True
 
 

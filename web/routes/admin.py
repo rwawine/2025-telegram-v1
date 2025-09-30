@@ -148,6 +148,26 @@ def clear_participants():
     return redirect(url_for("admin.participants"))
 
 
+@admin_bp.route("/database/clear", methods=["POST"])
+@login_required
+def clear_database():
+    """Полная очистка всей базы данных - КРИТИЧЕСКАЯ ОПЕРАЦИЯ"""
+    confirm_word = request.form.get("confirm_word", "").strip().lower()
+    if confirm_word != "очистить базу":
+        flash("Для подтверждения введите 'очистить базу'", "warning")
+        return redirect(url_for("admin.settings"))
+    
+    db = _get_admin_db()
+    try:
+        db.clear_all_database()
+        flash("⚠️ База данных полностью очищена! Все данные удалены.", "warning")
+        current_app.logger.warning(f"Администратор {current_user.username} выполнил полную очистку БД")
+    except Exception as e:
+        current_app.logger.exception("Критическая ошибка при очистке БД")
+        flash(f"Не удалось очистить базу данных: {e}", "error")
+    return redirect(url_for("admin.settings"))
+
+
 @admin_bp.route("/participants/delete_selected", methods=["POST"])
 @login_required
 def delete_selected_participants():
@@ -216,9 +236,20 @@ def delete_participant(participant_id: int):
     db = _get_admin_db()
     try:
         with db._connect() as conn:
+            # Удаляем связанные данные
+            conn.execute("DELETE FROM winners WHERE participant_id=?", (participant_id,))
+            conn.execute(
+                "DELETE FROM support_tickets WHERE participant_id=?", 
+                (participant_id,)
+            )
+            conn.execute(
+                "DELETE FROM broadcast_queue WHERE telegram_id=(SELECT telegram_id FROM participants WHERE id=?)", 
+                (participant_id,)
+            )
+            # Удаляем самого участника
             conn.execute("DELETE FROM participants WHERE id=?", (participant_id,))
             conn.commit()
-        flash("Участник удален", "success")
+        flash("Участник и все связанные данные удалены", "success")
     except Exception as e:
         current_app.logger.exception("Ошибка удаления участника")
         flash(f"Не удалось удалить участника: {e}", "error")
