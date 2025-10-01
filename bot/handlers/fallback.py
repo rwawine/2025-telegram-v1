@@ -79,6 +79,14 @@ class SmartFallbackHandler:
     async def handle_unexpected_text(self, message: types.Message, state: FSMContext):
         """Обработчик неожиданных текстовых сообщений"""
         
+        # CRITICAL: Check if user is in a registration state - if so, skip this handler
+        # Registration handlers should process the message instead
+        current_state = await state.get_state()
+        if current_state:
+            # User is in some FSM state - let the state handlers process it
+            # This fallback should ONLY trigger when user has NO active state
+            return
+        
         from bot.context_manager import get_context_manager
         context_manager = get_context_manager()
         if context_manager:
@@ -163,8 +171,12 @@ class SmartFallbackHandler:
         """Обработка фото в неожиданных местах"""
         current_state = await state.get_state()
         
+        # Если мы в состоянии загрузки фото, пропускаем - пусть обработает registration handler
+        if current_state and "upload_photo" in current_state:
+            return
+        
         # Если мы НЕ в состоянии загрузки фото, то это неожиданно
-        if not current_state or "upload_photo" not in current_state:
+        if current_state:
             context_manager = get_context_manager()
             if context_manager:
                 await context_manager.increment_error_count(message.from_user.id)
@@ -180,7 +192,11 @@ class SmartFallbackHandler:
         """Обработка контакта в неожиданных местах"""
         current_state = await state.get_state()
         
-        if not current_state or "enter_phone" not in current_state:
+        # Если мы в состоянии ввода телефона, пропускаем - пусть обработает registration handler
+        if current_state and "enter_phone" in current_state:
+            return
+        
+        if current_state:
             context_manager = get_context_manager()
             if context_manager:
                 await context_manager.increment_error_count(message.from_user.id)
