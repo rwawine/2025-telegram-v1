@@ -224,7 +224,6 @@ class AdaptiveKeyboards:
             [KeyboardButton(text="❓ Частые вопросы")],
             [KeyboardButton(text="📝 Написать сообщение")], 
             [KeyboardButton(text="📞 Мои обращения")],
-            [KeyboardButton(text="⚡ Экстренная помощь"), KeyboardButton(text="🔧 Тех.поддержка")],
             [KeyboardButton(text="🏠 Главное меню")]
         ]
         

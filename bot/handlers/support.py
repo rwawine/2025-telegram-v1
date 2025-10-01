@@ -40,9 +40,6 @@ class SupportHandler:
         self.router.message.register(self.ask_new_ticket, F.text.contains("Написать сообщение"))
         self.router.message.register(self.list_my_tickets, F.text.contains("Мои обращения"))
         
-        # CRITICAL FIX: Missing handlers for emergency and tech support buttons
-        self.router.message.register(self.handle_emergency_help, F.text.contains("Экстренная помощь"))
-        self.router.message.register(self.handle_tech_support, F.text.contains("Тех.поддержка"))
         # 'Главное меню' handled in registration/common; avoid duplicate replies here
 
         # Inline callbacks
@@ -605,90 +602,6 @@ class SupportHandler:
             from bot.handlers.common import CommonHandlers
             common = CommonHandlers()
             await common.show_info_menu(message)
-
-    # CRITICAL FIX: Missing emergency help and tech support handlers
-    async def handle_emergency_help(self, message: types.Message, state: FSMContext) -> None:
-        """Handle emergency help button"""
-        context_manager = get_context_manager()
-        if context_manager:
-            await context_manager.update_context(
-                message.from_user.id,
-                UserContext.SUPPORT,
-                UserAction.BUTTON_CLICK
-            )
-        
-        await message.answer(
-            "⚡ **ЭКСТРЕННАЯ ПОМОЩЬ**\n\n"
-            "🆘 Для срочных вопросов и критических проблем\n\n"
-            "📞 **Быстрые контакты:**\n"
-            "• Телефон поддержки: 8-800-XXX-XX-XX\n"
-            "• Email: support@example.com\n"
-            "• Telegram: @support_bot\n\n"
-            "🔥 **Типичные экстренные случаи:**\n"
-            "• Не могу зарегистрироваться перед дедлайном\n" 
-            "• Техническая ошибка в последний момент\n"
-            "• Проблемы с загрузкой фото\n"
-            "• Утерян доступ к аккаунту\n\n"
-            "💡 Или создайте **срочное обращение** прямо здесь:",
-            parse_mode="Markdown"
-        )
-        
-        # Автоматически переводим в режим создания срочного тикета
-        await state.set_state(SupportStates.entering_message)
-        await state.update_data(urgent=True, category="emergency")
-        
-        await message.answer(
-            "🆘 **Создаем СРОЧНОЕ обращение**\n\n"
-            "✍️ Опишите проблему максимально подробно:\n"
-            "• Что именно произошло?\n"
-            "• На каком этапе возникла проблема?\n"
-            "• Какие ошибки видите?\n\n"
-            "⚡ Срочные обращения рассматриваются в первую очередь!",
-            reply_markup=get_ticket_actions_keyboard(),
-            parse_mode="Markdown"
-        )
-
-    async def handle_tech_support(self, message: types.Message, state: FSMContext) -> None:
-        """Handle tech support button"""
-        context_manager = get_context_manager()
-        if context_manager:
-            await context_manager.update_context(
-                message.from_user.id,
-                UserContext.SUPPORT,
-                UserAction.BUTTON_CLICK
-            )
-        
-        await message.answer(
-            "🔧 **ТЕХНИЧЕСКАЯ ПОДДЕРЖКА**\n\n"
-            "🖥️ Помощь с техническими проблемами и настройками\n\n"
-            "🔧 **Мы поможем с:**\n"
-            "• Проблемы с загрузкой фото/документов\n"
-            "• Ошибки в работе бота\n"
-            "• Проблемы с форматами файлов\n"
-            "• Вопросы по интерфейсу\n"
-            "• Сбои и зависания\n\n"
-            "💾 **Перед обращением:**\n"
-            "• Сделайте скриншот ошибки\n"
-            "• Запомните последние действия\n"
-            "• Попробуйте перезапустить бота (команда /start)\n\n"
-            "📝 Создайте техническое обращение:",
-            parse_mode="Markdown"
-        )
-        
-        # Переводим в режим создания технического тикета
-        await state.set_state(SupportStates.entering_message)
-        await state.update_data(category="tech_support")
-        
-        await message.answer(
-            "🔧 **Создаем ТЕХНИЧЕСКОЕ обращение**\n\n"
-            "✍️ Опишите техническую проблему:\n"
-            "• Что вы пытались сделать?\n"
-            "• Какая ошибка возникла?\n"
-            "• Приложите скриншот (если есть)\n\n"
-            "💡 Чем подробнее опишете - тем быстрее поможем!",
-            reply_markup=get_ticket_actions_keyboard(),
-            parse_mode="Markdown"
-        )
 
     async def reply_to_ticket(self, callback: types.CallbackQuery, state: FSMContext) -> None:
         """Handle reply to ticket button"""
