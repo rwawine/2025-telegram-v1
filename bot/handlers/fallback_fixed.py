@@ -1,0 +1,446 @@
+"""ИСПРАВЛЕННАЯ система fallback-обработчиков с правильной логикой FSM."""
+
+from __future__ import annotations
+
+import random
+from typing import Dict, Any
+
+from aiogram import F, Router, types
+from aiogram.fsm.context import FSMContext
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from bot.context_manager import get_context_manager, UserContext, UserAction
+from bot.keyboards import (
+    get_main_menu_keyboard_for_user,
+    get_support_menu_keyboard,
+    get_name_input_keyboard,
+    get_phone_input_keyboard,
+    get_loyalty_card_keyboard,
+    get_photo_upload_keyboard
+)
+
+
+class FixedSmartFallbackHandler:
+    """ИСПРАВЛЕННЫЙ умный обработчик с правильной логикой FSM"""
+    
+    def __init__(self):
+        self.router = Router()
+        self.router.name = "smart_fallback"
+        self._register_handlers()
+    
+    def setup(self, dispatcher) -> None:
+        # Fallback handlers должны быть последними (самый низкий приоритет)
+        dispatcher.include_router(self.router)
+    
+    def _register_handlers(self):
+        """Регистрация умных fallback обработчиков"""
+        
+        # ИСПРАВЛЕНИЕ: Убираем раннее возвращение при наличии состояния!
+        # Теперь fallback handlers работают и в FSM состояниях
+        
+        # Обработчик для всех неожиданных текстовых сообщений (самый низкий приоритет)
+        self.router.message.register(
+            self.handle_unexpected_text,
+            F.text,
+        )
+        
+        # Обработчики для разных типов контента
+        self.router.message.register(
+            self.handle_unexpected_sticker,
+            F.sticker,
+        )
+        
+        self.router.message.register(
+            self.handle_unexpected_voice,
+            F.voice | F.video_note,
+        )
+        
+        self.router.message.register(
+            self.handle_unexpected_media,
+            F.video | F.audio | F.animation | F.document,
+        )
+        
+        self.router.message.register(
+            self.handle_unexpected_photo,
+            F.photo,
+        )
+        
+        self.router.message.register(
+            self.handle_unexpected_contact,
+            F.contact,
+        )
+        
+        self.router.message.register(
+            self.handle_unexpected_location,
+            F.location | F.venue,
+        )
+        
+        # Обработчик для неизвестных callback queries
+        self.router.callback_query.register(
+            self.handle_unknown_callback,
+        )
+    
+    async def handle_unexpected_text(self, message: types.Message, state: FSMContext):
+        """ИСПРАВЛЕННЫЙ обработчик неожиданных текстовых сообщений"""
+        
+        current_state = await state.get_state()
+        context_manager = get_context_manager()
+        
+        # ВАЖНО: Не возвращаемся раньше времени!
+        # Проверяем, обработал ли кто-то это сообщение в своем состоянии
+        
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id, 
+                UserContext.CONFUSED if current_state else UserContext.NAVIGATION,
+                UserAction.TEXT_INPUT
+            )
+        
+        # Если пользователь в FSM состоянии, помогаем контекстуально
+        if current_state:
+            await self._provide_fsm_help(message, state, current_state)
+        else:
+            # Если нет состояния, проверяем на запутанность
+            is_confused = False
+            if context_manager:
+                try:
+                    is_confused = await context_manager.detect_user_confusion(message.from_user.id, message, state)
+                except Exception:
+                    is_confused = False
+            
+            if is_confused:
+                await self._handle_confused_user(message, state)
+            else:
+                await self._provide_contextual_help(message, state)
+    
+    async def _provide_fsm_help(self, message: types.Message, state: FSMContext, current_state: str):
+        """Контекстная помощь для пользователей в FSM состояниях"""
+        
+        state_help_map = {
+            "RegistrationStates:enter_name": {
+                "message": "📝 **Сейчас нужно ввести полное имя**\n\n"
+                          "✅ **Правильно:** Иванов Иван Иванович\n"
+                          "❌ **Неправильно:** Ваня, Ivan, +79001234567\n\n"
+                          "💡 *Укажите имя точно как в паспорте*",
+                "keyboard": get_name_input_keyboard(),
+                "wrong_content_hints": {
+                    "phone": "📱 Телефон вы укажете на следующем шаге!",
+                    "photo": "📸 Фото понадобится в конце регистрации!",
+                    "contact": "📞 Контакт пригодится для телефона!"
+                }
+            },
+            "RegistrationStates:enter_phone": {
+                "message": "📱 **Сейчас нужен номер телефона**\n\n"
+                          "✅ **Два способа:**\n"
+                          "• Нажать **📞 Отправить мой номер**\n"
+                          "• Написать в формате **+79001234567**\n\n"
+                          "💡 *Используйте действующий номер*",
+                "keyboard": get_phone_input_keyboard(),
+                "wrong_content_hints": {
+                    "name": "✅ Имя уже сохранено! Теперь телефон.",
+                    "photo": "📸 Фото будет последним шагом!"
+                }
+            },
+            "RegistrationStates:enter_loyalty_card": {
+                "message": "💳 **Сейчас нужен номер карты лояльности**\n\n"
+                          "✅ **Формат:** латинские буквы и цифры\n"
+                          "✅ **Длина:** 6-20 символов\n"
+                          "✅ **Пример:** ABC12345\n\n"
+                          "💡 *Найдите карту в приложении или кошельке*",
+                "keyboard": get_loyalty_card_keyboard()
+            },
+            "RegistrationStates:upload_photo": {
+                "message": "📸 **Последний шаг - фото лифлета!**\n\n"
+                          "🎨 **Лифлет** = рекламная листовка/баннер\n\n"
+                          "✅ **Как отправить:**\n"
+                          "• Нажать **📷 Сделать фото**\n"
+                          "• Нажать **🖼️ Выбрать из галереи**\n"
+                          "• Просто прислать фото сообщением\n\n"
+                          "💡 *Фото должно быть четким и читаемым*",
+                "keyboard": get_photo_upload_keyboard()
+            },
+            "SupportStates:entering_message": {
+                "message": "💬 **Создание обращения в поддержку**\n\n"
+                          "✅ **Опишите проблему подробно:**\n"
+                          "• Что произошло?\n"
+                          "• На каком этапе?\n"
+                          "• Какие ошибки видите?\n\n"
+                          "📎 *Можете приложить фото или документ*",
+                "keyboard": None  # Используется клавиатура из support handler
+            }
+        }
+        
+        help_info = state_help_map.get(current_state)
+        if not help_info:
+            # Fallback для неизвестных состояний
+            await message.answer(
+                f"🤔 **Не уверен, что сейчас нужно делать**\n\n"
+                f"📍 Текущее состояние: `{current_state}`\n\n"
+                f"💡 Попробуйте:\n"
+                f"• `/cancel` - отменить текущее действие\n"
+                f"• `/start` - начать заново\n"
+                f"• `/help` - получить помощь",
+                parse_mode="Markdown"
+            )
+            return
+        
+        # Проверяем тип контента и даем специфическую подсказку
+        content_hint = ""
+        if message.photo:
+            content_hint = help_info.get("wrong_content_hints", {}).get("photo", "")
+        elif message.contact:
+            content_hint = help_info.get("wrong_content_hints", {}).get("contact", "")
+        elif self._looks_like_phone(message.text):
+            content_hint = help_info.get("wrong_content_hints", {}).get("phone", "")
+        elif self._looks_like_name(message.text) and "phone" in current_state:
+            content_hint = help_info.get("wrong_content_hints", {}).get("name", "")
+        
+        response = help_info["message"]
+        if content_hint:
+            response = f"{content_hint}\n\n{response}"
+        
+        await message.answer(
+            response,
+            reply_markup=help_info["keyboard"],
+            parse_mode="Markdown"
+        )
+    
+    def _looks_like_phone(self, text: str) -> bool:
+        """Проверяет, похож ли текст на номер телефона"""
+        if not text:
+            return False
+        clean_text = ''.join(c for c in text if c.isdigit() or c == '+')
+        return len(clean_text) >= 10 and (clean_text.startswith('+') or clean_text.startswith('7') or clean_text.startswith('8'))
+    
+    def _looks_like_name(self, text: str) -> bool:
+        """Проверяет, похож ли текст на имя"""
+        if not text:
+            return False
+        words = text.split()
+        return len(words) >= 2 and all(word.isalpha() or word.replace('-', '').isalpha() for word in words)
+    
+    async def handle_unexpected_sticker(self, message: types.Message, state: FSMContext):
+        """Обработка стикеров с учетом FSM состояния"""
+        current_state = await state.get_state()
+        
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.increment_error_count(message.from_user.id)
+            witty_responses = context_manager.get_witty_responses()["sticker_in_registration"]
+            response = random.choice(witty_responses)
+        else:
+            response = "😊 Стикер принят! Но сейчас нужно что-то другое."
+        
+        await message.answer(response)
+        
+        # Предлагаем контекстную помощь с учетом FSM состояния
+        if current_state:
+            await self._provide_fsm_help(message, state, current_state)
+        else:
+            await self._provide_contextual_help(message, state, is_media_error=True)
+    
+    async def handle_unexpected_voice(self, message: types.Message, state: FSMContext):
+        """Обработка голосовых сообщений с учетом FSM состояния"""
+        current_state = await state.get_state()
+        
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.increment_error_count(message.from_user.id)
+            witty_responses = context_manager.get_witty_responses()["voice_unexpected"]
+            response = random.choice(witty_responses)
+        else:
+            response = "🎤 Голосовое сообщение получено! Но сейчас нужен текст."
+        
+        await message.answer(response)
+        
+        if current_state:
+            await self._provide_fsm_help(message, state, current_state)
+        else:
+            await self._provide_contextual_help(message, state, is_media_error=True)
+    
+    async def handle_unexpected_media(self, message: types.Message, state: FSMContext):
+        """Обработка неожиданного медиа контента с учетом FSM состояния"""
+        current_state = await state.get_state()
+        
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.increment_error_count(message.from_user.id)
+        
+        content_type_map = {
+            'video': 'видео 🎥',
+            'audio': 'аудио 🎵', 
+            'animation': 'GIF 🎬',
+            'document': 'документ 📄'
+        }
+        
+        content_type = None
+        for msg_type, display_name in content_type_map.items():
+            if hasattr(message, msg_type) and getattr(message, msg_type):
+                content_type = display_name
+                break
+        
+        if not content_type:
+            content_type = "медиа 📎"
+        
+        await message.answer(
+            f"📎 {content_type} получен! Но в данный момент мне нужно что-то другое.\n\n"
+            f"🎯 Давайте я подскажу, что сейчас лучше отправить:"
+        )
+        
+        if current_state:
+            await self._provide_fsm_help(message, state, current_state)
+        else:
+            await self._provide_contextual_help(message, state, is_media_error=True)
+    
+    async def handle_unexpected_photo(self, message: types.Message, state: FSMContext):
+        """Обработка фото в неожиданных местах"""
+        current_state = await state.get_state()
+        
+        # Если мы в состоянии загрузки фото, пропускаем - пусть обработает registration handler
+        if current_state and "upload_photo" in current_state:
+            return
+        
+        # Если мы НЕ в состоянии загрузки фото, то это неожиданно
+        if current_state:
+            context_manager = get_context_manager()
+            if context_manager:
+                await context_manager.increment_error_count(message.from_user.id)
+            
+            await message.answer(
+                "📸 Красивое фото! Но сейчас оно не подходит для текущего шага.\n\n"
+                "🔄 Давайте разберемся, что нужно сделать:"
+            )
+            
+            await self._provide_fsm_help(message, state, current_state)
+        else:
+            await self._provide_contextual_help(message, state, is_media_error=True)
+    
+    async def handle_unexpected_contact(self, message: types.Message, state: FSMContext):
+        """Обработка контакта в неожиданных местах"""
+        current_state = await state.get_state()
+        
+        # Если мы в состоянии ввода телефона, пропускаем - пусть обработает registration handler
+        if current_state and "enter_phone" in current_state:
+            return
+        
+        if current_state:
+            context_manager = get_context_manager()
+            if context_manager:
+                await context_manager.increment_error_count(message.from_user.id)
+            
+            await message.answer(
+                "📱 Спасибо за контакт! Но сейчас он пригодится на другом этапе.\n\n"
+                "🧭 Позвольте направить вас:"
+            )
+            
+            await self._provide_fsm_help(message, state, current_state)
+        else:
+            await self._provide_contextual_help(message, state, is_media_error=True)
+    
+    async def handle_unexpected_location(self, message: types.Message, state: FSMContext):
+        """Обработка геолокации"""
+        current_state = await state.get_state()
+        
+        await message.answer(
+            "🗺️ Интересное место! Но для нашего розыгрыша геолокация не нужна.\n\n"
+            "🎯 Давайте вернемся к главному:"
+        )
+        
+        if current_state:
+            await self._provide_fsm_help(message, state, current_state)
+        else:
+            keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+            await message.answer("Выберите нужный раздел:", reply_markup=keyboard)
+    
+    async def _handle_confused_user(self, message: types.Message, state: FSMContext):
+        """Помощь запутавшемуся пользователю"""
+        
+        context_manager = get_context_manager()
+        if context_manager:
+            confusion_responses = context_manager.get_witty_responses()["confusion_general"]
+            response = random.choice(confusion_responses)
+        else:
+            response = "🤔 Кажется, что-то пошло не так. Давайте начнем сначала!"
+        
+        await message.answer(f"{response}\n\n🚀 **Быстрый перезапуск:**")
+        
+        # Создаем кнопки для быстрой навигации
+        quick_nav = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="quick_nav_main"),
+                InlineKeyboardButton(text="🚀 К регистрации", callback_data="quick_nav_register")
+            ],
+            [
+                InlineKeyboardButton(text="💬 В поддержку", callback_data="quick_nav_support"),
+                InlineKeyboardButton(text="❌ Отменить все", callback_data="quick_nav_cancel")
+            ]
+        ])
+        
+        await message.answer(
+            "🎯 **Куда направимся?**\n\n"
+            "Выберите, что вы хотели сделать:",
+            reply_markup=quick_nav
+        )
+    
+    async def _provide_contextual_help(self, message: types.Message, state: FSMContext, is_media_error: bool = False):
+        """Контекстная помощь для пользователей без FSM состояния"""
+        
+        # Сначала проверяем статус пользователя
+        from database.repositories import get_participant_status
+        user_status = await get_participant_status(message.from_user.id)
+        
+        # Даем специфичные подсказки в зависимости от статуса
+        if user_status is None:
+            await message.answer(
+                "🚀 **Похоже, вы еще не зарегистрированы!**\n\n"
+                "🎯 Для участия в розыгрыше нужно:\n"
+                "1️⃣ Нажать **«🚀 Начать регистрацию»**\n"
+                "2️⃣ Заполнить данные (имя, телефон, карта)\n"
+                "3️⃣ Загрузить фото лифлета\n\n"
+                "⚡ Это займет всего 2-3 минуты!",
+                parse_mode="Markdown"
+            )
+        elif user_status == "rejected":
+            await message.answer(
+                "❌ **Ваша заявка была отклонена**\n\n"
+                "💬 **Рекомендуем:**\n"
+                "🔄 Подать заявку повторно с исправлениями\n"
+                "💭 Написать в поддержку для уточнений\n\n"
+                "📞 **Техподдержка поможет** выяснить причину!",
+                parse_mode="Markdown"
+            )
+        elif user_status == "pending":
+            await message.answer(
+                "⏳ **Ваша заявка на модерации**\n\n"
+                "✅ Заявка получена и рассматривается\n"
+                "🔔 Мы уведомим о результате\n"
+                "📋 Можете проверить статус через **«📋 Мой статус»**",
+                parse_mode="Markdown"
+            )
+        elif user_status == "approved":
+            await message.answer(
+                "🎉 **Поздравляем! Вы участвуете в розыгрыше!**\n\n"
+                "✅ Ваша заявка одобрена\n"
+                "🎁 Ожидайте результатов розыгрыша\n"
+                "📋 Следите за обновлениями в **«📊 О розыгрыше»**",
+                parse_mode="Markdown"
+            )
+        
+        # Показываем главное меню
+        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+        await message.answer("Выберите действие:", reply_markup=keyboard)
+    
+    async def handle_unknown_callback(self, callback: types.CallbackQuery):
+        """Обработка неизвестных callback запросов"""
+        await callback.answer(
+            "🤖 Эта кнопка больше не активна или произошла ошибка.\n"
+            "Попробуйте вернуться в главное меню.",
+            show_alert=True
+        )
+
+
+def setup_fixed_fallback_handlers(dispatcher) -> FixedSmartFallbackHandler:
+    """Настройка ИСПРАВЛЕННЫХ fallback обработчиков"""
+    handler = FixedSmartFallbackHandler()
+    handler.setup(dispatcher)
+    return handler

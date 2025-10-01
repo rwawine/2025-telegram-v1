@@ -18,7 +18,7 @@ class CommonHandlers:
         dispatcher.include_router(self.router)
 
     def _register(self) -> None:
-        self.router.message.register(self.start, Command("start"))
+        # REMOVED: Command("start") - теперь в global_commands.py
         self.router.message.register(self.help_and_support_handler, F.text.in_(["❓ Помощь", "💬 Помощь", "💬 Техподдержка", "💬 Поддержка"]))
         self.router.message.register(self.status_handler, F.text.in_(["📋 Мой статус", "✅ Мой статус", "⏳ Мой статус", "❌ Мой статус"]))
         self.router.message.register(self.show_info_menu, F.text.contains("розыгрыш"))
@@ -26,25 +26,7 @@ class CommonHandlers:
         self.router.message.register(self.handle_results_redirect, F.text.contains("🏆 Результаты"))
         self.router.callback_query.register(self.handle_info_callback, F.data.startswith("info_"))
 
-    async def start(self, message: types.Message) -> None:
-        # Обновляем контекст пользователя
-        context_manager = get_context_manager()
-        if context_manager:
-            await context_manager.update_context(
-                message.from_user.id,
-                UserContext.NAVIGATION,
-                UserAction.BUTTON_CLICK
-            )
-        
-        # Проверяем статус регистрации пользователя
-        registration_status = await get_participant_status(message.from_user.id)
-        is_registered = registration_status is not None
-        
-        # Получаем умное приветственное сообщение
-        welcome_msg = smart_messages.get_welcome_message(is_registered)
-        
-        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
-        await message.answer(welcome_msg["text"], reply_markup=keyboard, parse_mode="Markdown")
+    # REMOVED: start method - теперь в global_commands.py
 
     async def help_and_support_handler(self, message: types.Message) -> None:
         """Объединенный обработчик помощи и техподдержки"""

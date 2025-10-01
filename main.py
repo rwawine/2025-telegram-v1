@@ -1,4 +1,4 @@
-"""Application entrypoint orchestrating bot, web server, and monitoring."""
+"""ИСПРАВЛЕННАЯ точка входа с правильной инициализацией FSM."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from aiohttp_wsgi import WSGIHandler
 import os
 
 from bot import OptimizedBot
-# Импорт handlers перенесен в init_bot после инициализации кеша
 from config import load_config
 from database import init_db_pool, run_migrations
 from services import BroadcastService, SecureLottery, set_main_loop
@@ -27,14 +26,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def init_bot(config, cache):
-    # Импортируем handlers здесь, после инициализации кеша
+async def init_bot_fixed(config, cache):
+    """ИСПРАВЛЕННАЯ инициализация бота с правильным порядком обработчиков"""
+    
+    # Импортируем handlers
     from bot.handlers import (
         setup_common_handlers,
         setup_registration_handlers,
         setup_support_handlers,
-        setup_fallback_handlers,
     )
+    from bot.handlers.global_commands import setup_global_commands  # НОВОЕ
+    from bot.handlers.fallback_fixed import setup_fixed_fallback_handlers  # ИСПРАВЛЕНО
+    from bot.middleware.fsm_logger import setup_fsm_middleware  # НОВОЕ
     from bot.context_manager import init_context_manager
     
     # Инициализируем context manager
@@ -46,8 +49,16 @@ async def init_bot(config, cache):
         worker_threads=config.bot_worker_threads,
         message_queue_size=config.message_queue_size,
     )
-    setup_common_handlers(bot.dispatcher)
+    
+    # КРИТИЧЕСКИ ВАЖНЫЙ ПОРЯДОК РЕГИСТРАЦИИ HANDLERS:
+    # 1. ГЛОБАЛЬНЫЕ КОМАНДЫ (высший приоритет)
+    setup_global_commands(bot.dispatcher)
+    logger.info("✅ Global commands registered (highest priority)")
+    
+    # 2. СПЕЦИФИЧЕСКИЕ HANDLERS (средний приоритет)
+    setup_common_handlers(bot.dispatcher)  
     setup_support_handlers(bot.dispatcher)
+    
     upload_path = Path(config.upload_folder)
     upload_path.mkdir(parents=True, exist_ok=True)
     setup_registration_handlers(
@@ -56,8 +67,16 @@ async def init_bot(config, cache):
         cache=cache,
         bot=bot.bot,
     )
-    # Fallback обработчики должны быть последними (наименьший приоритет)
-    setup_fallback_handlers(bot.dispatcher)
+    logger.info("✅ Specific handlers registered (medium priority)")
+    
+    # 3. FALLBACK HANDLERS (самый низкий приоритет)
+    setup_fixed_fallback_handlers(bot.dispatcher)
+    logger.info("✅ Fallback handlers registered (lowest priority)")
+    
+    # 4. FSM MIDDLEWARE (для логирования и очистки)
+    setup_fsm_middleware(bot.dispatcher)
+    logger.info("✅ FSM middleware configured")
+    
     return bot
 
 
@@ -78,7 +97,6 @@ async def main() -> None:
             logger.info("ENABLE_BOT is false. Running in admin-only mode (web interface only).")
         else:
             logger.warning("BOT_TOKEN is not set properly. Running in admin-only mode (web interface only).")
-        # Don't return, allow web interface to run without bot
 
     loop = asyncio.get_running_loop()
     set_main_loop(loop)
@@ -96,19 +114,19 @@ async def main() -> None:
         cold_ttl=config.cache_ttl_cold,
     )
 
-    # Initialize bot only if token is properly configured
+    # Initialize bot with FIXED initialization
     bot = None
     broadcast_service = None
     
     if config.enable_bot and config.bot_token and config.bot_token != "your_bot_token_here":
         try:
-            bot = await init_bot(config, cache)
+            bot = await init_bot_fixed(config, cache)  # ИСПРАВЛЕННАЯ инициализация
             broadcast_service = BroadcastService(
                 bot.bot,
                 rate_limit=config.broadcast_rate_limit,
                 batch_size=config.broadcast_batch_size,
             )
-            logger.info("Bot initialized successfully")
+            logger.info("🤖 Bot initialized successfully with FIXED architecture")
         except Exception as e:
             logger.error(f"Failed to initialize bot: {e}")
             logger.info("Continuing with web interface only...")
@@ -121,8 +139,8 @@ async def main() -> None:
     backup_service = init_backup_service(
         db_path=config.database_path,
         backup_dir=config.backup_folder,
-        max_age_days=2,  # Keep backups for 2 days only
-        backup_interval_hours=6  # Backup every 6 hours
+        max_age_days=2,
+        backup_interval_hours=6
     )
 
     flask_app = create_app(config)
@@ -152,7 +170,7 @@ async def main() -> None:
     
     runner = aiohttp_web.AppRunner(aio_app)
     await runner.setup()
-    # Bind to PORT env var if present (Render/Heroku). Always bind to 0.0.0.0 there.
+    # Bind to PORT env var if present (Render/Heroku)
     effective_port = int(os.getenv("PORT", str(config.web_port)))
     effective_host = "0.0.0.0" if os.getenv("PORT") else config.web_host
     site = aiohttp_web.TCPSite(runner, effective_host, effective_port)
@@ -164,13 +182,15 @@ async def main() -> None:
     
     # Start backup service
     await backup_service.start()
-    logger.info("💾 Automatic backup service started (every 6 hours, keep 2 days)")
+    logger.info("💾 Automatic backup service started")
 
     # Start bot if available
     bot_task = None
     if bot:
         bot_task = asyncio.create_task(bot.start())
-        logger.info("🤖 Telegram bot started")
+        logger.info("🤖 Telegram bot started with FIXED FSM architecture")
+        logger.info("📋 Handler priorities: Global Commands → Specific → Fallback")
+        logger.info("🔍 FSM middleware: Logging + Auto-cleanup enabled")
 
     try:
         if bot_task:

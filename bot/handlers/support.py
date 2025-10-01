@@ -50,15 +50,15 @@ class SupportHandler:
 
         # Compose ticket
         # Draft message and actions within composing state
-        # Navigation buttons that should exit support state (ВЫСШИЙ ПРИОРИТЕТ)
-        self.router.message.register(self.exit_to_main_menu, SupportStates.entering_message, F.text.in_(["🏠 Главное меню", "✅ Мой статус", "💬 Помощь", "📊 О розыгрыше"]))
+        # Navigation buttons that should exit support state (ВЫСШИЙ ПРИОРИТЕТ) 
+        # REMOVED: exit_to_main_menu with global navigation buttons (теперь в global_commands.py)
+        # Оставляем только специфичные кнопки поддержки
         # Ticket actions
         self.router.message.register(self.handle_send_ticket, SupportStates.entering_message, F.text == "✅ Отправить обращение")
         self.router.message.register(self.handle_change_category, SupportStates.entering_message, F.text == "⬅️ Изменить категорию")
         self.router.message.register(self.handle_attach_photo, SupportStates.entering_message, F.text == "📷 Прикрепить фото")
         self.router.message.register(self.handle_attach_document, SupportStates.entering_message, F.text == "📄 Прикрепить документ")
-        # General navigation (for any state)
-        self.router.message.register(self.back_to_menu, F.text == "🏠 Главное меню")
+        # General navigation removed - теперь в global_commands.py
         # Any other text becomes the draft body (САМЫЙ НИЗКИЙ ПРИОРИТЕТ)
         self.router.message.register(self.receive_ticket_message, SupportStates.entering_message)
 
