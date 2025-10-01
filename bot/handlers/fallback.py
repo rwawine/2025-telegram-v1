@@ -112,6 +112,11 @@ class SmartFallbackHandler:
     
     async def handle_unexpected_sticker(self, message: types.Message, state: FSMContext):
         """Обработка стикеров в неожиданных местах"""
+        # Check if user is in active FSM state - skip if so
+        current_state = await state.get_state()
+        if current_state:
+            return
+            
         context_manager = get_context_manager()
         if context_manager:
             await context_manager.increment_error_count(message.from_user.id)
@@ -127,6 +132,11 @@ class SmartFallbackHandler:
     
     async def handle_unexpected_voice(self, message: types.Message, state: FSMContext):
         """Обработка голосовых сообщений"""
+        # Check if user is in active FSM state - skip if so
+        current_state = await state.get_state()
+        if current_state:
+            return
+            
         context_manager = get_context_manager()
         if context_manager:
             await context_manager.increment_error_count(message.from_user.id)
@@ -140,6 +150,11 @@ class SmartFallbackHandler:
     
     async def handle_unexpected_media(self, message: types.Message, state: FSMContext):
         """Обработка неожиданного медиа контента"""
+        # Check if user is in active FSM state - skip if so
+        current_state = await state.get_state()
+        if current_state:
+            return
+            
         context_manager = get_context_manager()
         if context_manager:
             await context_manager.increment_error_count(message.from_user.id)
@@ -210,6 +225,11 @@ class SmartFallbackHandler:
     
     async def handle_unexpected_location(self, message: types.Message, state: FSMContext):
         """Обработка геолокации"""
+        # Check if user is in active FSM state - skip if so
+        current_state = await state.get_state()
+        if current_state:
+            return
+            
         await message.answer(
             "🗺️ Интересное место! Но для нашего розыгрыша геолокация не нужна.\n\n"
             "🎯 Давайте вернемся к главному:"
