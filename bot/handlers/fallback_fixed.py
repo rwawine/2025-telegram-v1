@@ -381,6 +381,8 @@ class FixedSmartFallbackHandler:
             "Выберите, что вы хотели сделать:",
             reply_markup=quick_nav
         )
+        # Регистрируем обработчики быстрых действий
+        self._register_quick_nav_handlers()
     
     async def _provide_contextual_help(self, message: types.Message, state: FSMContext, is_media_error: bool = False):
         """Контекстная помощь для пользователей без FSM состояния"""
@@ -429,6 +431,56 @@ class FixedSmartFallbackHandler:
         # Показываем главное меню
         keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
         await message.answer("Выберите действие:", reply_markup=keyboard)
+
+    def _register_quick_nav_handlers(self) -> None:
+        """Регистрация обработчиков для быстрых inline-действий навигации."""
+
+        @self.router.callback_query(F.data == "quick_nav_main")
+        async def quick_nav_main(callback: types.CallbackQuery, state: FSMContext):
+            await state.clear()
+            keyboard = await get_main_menu_keyboard_for_user(callback.from_user.id)
+            await callback.message.edit_text(
+                "🏠 **Главное меню**\n\nВыберите нужный раздел:",
+                reply_markup=keyboard
+            )
+            await callback.answer()
+
+        @self.router.callback_query(F.data == "quick_nav_register")
+        async def quick_nav_register(callback: types.CallbackQuery, state: FSMContext):
+            from bot.states import RegistrationStates
+            await state.set_state(RegistrationStates.enter_name)
+            await callback.message.edit_text(
+                "🚀 **Регистрация участника**\n\nВведите ваше полное имя (как в документе).\nНапример: Иванов Иван Иванович"
+            )
+            await callback.message.answer(
+                "👆 Напишите имя в следующем сообщении:",
+                reply_markup=get_name_input_keyboard()
+            )
+            await callback.answer()
+
+        @self.router.callback_query(F.data == "quick_nav_support")
+        async def quick_nav_support(callback: types.CallbackQuery, state: FSMContext):
+            await state.clear()
+            await callback.message.edit_text(
+                "💬 **Центр поддержки**\n\nВыберите, что вас интересует:"
+            )
+            await callback.message.answer(
+                "Чем можем помочь?",
+                reply_markup=get_support_menu_keyboard()
+            )
+            await callback.answer()
+
+        @self.router.callback_query(F.data == "quick_nav_cancel")
+        async def quick_nav_cancel(callback: types.CallbackQuery, state: FSMContext):
+            # Эквивалент /cancel: очищаем состояние и возвращаемся в меню
+            await state.clear()
+            keyboard = await get_main_menu_keyboard_for_user(callback.from_user.id)
+            await callback.message.edit_text(
+                "❌ **Действие отменено**\n\n🏠 Возвращаемся в главное меню",
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            await callback.answer()
     
     async def handle_unknown_callback(self, callback: types.CallbackQuery):
         """Обработка неизвестных callback запросов"""

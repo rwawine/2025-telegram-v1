@@ -38,13 +38,15 @@ def create_app(config, testing=False) -> Flask:
         MAX_CONTENT_LENGTH=config.max_file_size,
         SEND_FILE_MAX_AGE_DEFAULT=3600,
         SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SECURE=False,
+        # Harden cookies for production
+        SESSION_COOKIE_SECURE=(config.environment != 'development'),
         SESSION_COOKIE_SAMESITE='Lax',
         DATABASE_PATH=config.database_path,
         TESTING=testing,
         # Fix CSRF issues with aiohttp-wsgi integration
         WTF_CSRF_TIME_LIMIT=None,
-        WTF_CSRF_CHECK_DEFAULT=False,  # Disable CSRF for WSGI compatibility
+        # Keep disabled under aiohttp-wsgi bridge; templates still include tokens safely
+        WTF_CSRF_CHECK_DEFAULT=False,
     )
     cache.init_app(app, config={"CACHE_TYPE": "simple"})
     # Conditionally enable CSRF based on testing mode
@@ -56,6 +58,13 @@ def create_app(config, testing=False) -> Flask:
     
     # Initialize performance middleware
     init_performance_middleware(app)
+
+    # Warn if insecure defaults detected
+    try:
+        if (config.admin_username == "admin" and config.admin_password in {"123456", "secure_password_change_me"}) or (not config.bot_token or config.bot_token == "your_bot_token_here"):
+            app.logger.warning("Insecure defaults detected: change ADMIN credentials and BOT_TOKEN in .env before production")
+    except Exception:
+        pass
     
     credentials = AdminCredentials(username=config.admin_username, password_hash=config.admin_password)
     # Update credentials with hashed password
@@ -128,6 +137,18 @@ def create_app(config, testing=False) -> Flask:
                 # Use route rule or path
                 path = getattr(request.url_rule, 'rule', request.path)
                 REQUEST_LATENCY.labels(method=request.method, path=path).observe(duration)
+        except Exception:
+            pass
+        # Add basic CSP to improve security while keeping current templates functional
+        try:
+            csp = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+            if not response.headers.get('Content-Security-Policy'):
+                response.headers['Content-Security-Policy'] = csp
+            # Additional hardening headers
+            response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+            response.headers.setdefault('X-Frame-Options', 'DENY')
+            response.headers.setdefault('Referrer-Policy', 'same-origin')
+            response.headers.setdefault('Permissions-Policy', "camera=(), microphone=(), geolocation=()")
         except Exception:
             pass
         return response

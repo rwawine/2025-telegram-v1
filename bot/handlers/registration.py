@@ -99,6 +99,14 @@ class RegistrationHandler:
         self.router.message.register(self.photo_unexpected_media, RegistrationStates.upload_photo, F.audio)
         self.router.message.register(self.photo_unexpected_media, RegistrationStates.upload_photo, F.location)
 
+        # CRITICAL FIX: Missing callback handlers for confirmation keyboard
+        self.router.callback_query.register(self.handle_edit_name, F.data == "edit_name")
+        self.router.callback_query.register(self.handle_edit_phone, F.data == "edit_phone")
+        self.router.callback_query.register(self.handle_edit_card, F.data == "edit_card")
+        self.router.callback_query.register(self.handle_edit_photo, F.data == "edit_photo")
+        self.router.callback_query.register(self.handle_confirm_registration, F.data == "confirm_registration")
+        self.router.callback_query.register(self.handle_cancel_registration, F.data == "cancel_registration")
+
         # Registration flow
         self.router.message.register(self.enter_name, RegistrationStates.enter_name)
         self.router.message.register(self.enter_phone, RegistrationStates.enter_phone)
@@ -231,6 +239,31 @@ class RegistrationHandler:
     async def upload_photo(self, message: types.Message, state: FSMContext) -> None:
         data = await state.get_data()
         file_id = message.photo[-1].file_id if message.photo else None
+
+        # Validate photo size against config limit (Stage 7: media limits)
+        try:
+            from config import load_config
+            max_size = load_config().max_file_size
+        except Exception:
+            max_size = 10 * 1024 * 1024  # Fallback 10MB
+
+        photo_size = getattr(message.photo[-1], "file_size", None)
+        if photo_size and photo_size > max_size:
+            await message.answer(
+                f"📸 Фото слишком большое ({photo_size // (1024*1024)} МБ). Максимум: {max_size // (1024*1024)} МБ.",
+                reply_markup=get_photo_upload_keyboard(),
+            )
+            return
+
+        # Download photo and ensure it was saved
+        photo_path = await self._download_photo(file_id) if file_id else None
+        if not photo_path:
+            await message.answer(
+                "Не удалось сохранить фото. Попробуйте другое изображение или снизьте разрешение.",
+                reply_markup=get_photo_upload_keyboard(),
+            )
+            return
+
         await state.clear()
 
         record = {
@@ -239,7 +272,7 @@ class RegistrationHandler:
             "full_name": data.get("full_name"),
             "phone_number": data.get("phone_number"),
             "loyalty_card": data.get("loyalty_card"),
-            "photo_path": await self._download_photo(file_id) if file_id else None,
+            "photo_path": photo_path,
         }
 
         await self._enqueue_record(record)
@@ -549,6 +582,105 @@ class RegistrationHandler:
         with suppress(asyncio.CancelledError):
             await self.flush_task
         await self._flush()
+
+    # CRITICAL FIX: Missing callback handlers implementation
+    async def handle_edit_name(self, callback: types.CallbackQuery, state: FSMContext) -> None:
+        """Handle edit name button in confirmation"""
+        await callback.answer()
+        await state.set_state(RegistrationStates.enter_name)
+        await callback.message.edit_text(
+            "✏️ **Изменение имени**\n\n"
+            "Введите ваше полное имя (как в документе).\n"
+            "Например: Иванов Иван Иванович",
+            parse_mode="Markdown"
+        )
+        await callback.message.answer(
+            "👆 Напишите новое имя:",
+            reply_markup=get_name_input_keyboard()
+        )
+
+    async def handle_edit_phone(self, callback: types.CallbackQuery, state: FSMContext) -> None:
+        """Handle edit phone button in confirmation"""
+        await callback.answer()
+        await state.set_state(RegistrationStates.enter_phone)
+        await callback.message.edit_text(
+            "✏️ **Изменение телефона**\n\n"
+            "Укажите ваш номер телефона:",
+            parse_mode="Markdown"
+        )
+        await callback.message.answer(
+            "📱 Отправьте номер телефона:",
+            reply_markup=get_phone_input_keyboard()
+        )
+
+    async def handle_edit_card(self, callback: types.CallbackQuery, state: FSMContext) -> None:
+        """Handle edit loyalty card button in confirmation"""
+        await callback.answer()
+        await state.set_state(RegistrationStates.enter_loyalty_card)
+        await callback.message.edit_text(
+            "✏️ **Изменение карты лояльности**\n\n"
+            "Введите номер вашей карты лояльности:",
+            parse_mode="Markdown"
+        )
+        await callback.message.answer(
+            "💳 Введите номер карты:",
+            reply_markup=get_loyalty_card_keyboard()
+        )
+
+    async def handle_edit_photo(self, callback: types.CallbackQuery, state: FSMContext) -> None:
+        """Handle edit photo button in confirmation"""
+        await callback.answer()
+        await state.set_state(RegistrationStates.upload_photo)
+        await callback.message.edit_text(
+            "✏️ **Изменение фото**\n\n"
+            "Загрузите фото лифлета заново:",
+            parse_mode="Markdown"
+        )
+        await callback.message.answer(
+            "📸 Отправьте новое фото:",
+            reply_markup=get_photo_upload_keyboard()
+        )
+
+    async def handle_confirm_registration(self, callback: types.CallbackQuery, state: FSMContext) -> None:
+        """Handle final registration confirmation"""
+        await callback.answer("✅ Обрабатываем регистрацию...")
+        
+        data = await state.get_data()
+        await state.clear()
+
+        record = {
+            "telegram_id": callback.from_user.id,
+            "username": callback.from_user.username,
+            "full_name": data.get("full_name"),
+            "phone_number": data.get("phone_number"),
+            "loyalty_card": data.get("loyalty_card"),
+            "photo_path": data.get("photo_path"),
+        }
+
+        await self._enqueue_record(record)
+        await callback.message.edit_text(
+            "🎉 **Регистрация завершена!**\n\n"
+            "Ваша заявка отправлена на модерацию.\n"
+            "Мы уведомим вас о результате.",
+            parse_mode="Markdown"
+        )
+        
+        keyboard = await get_main_menu_keyboard_for_user(callback.from_user.id)
+        await callback.message.answer("Что дальше?", reply_markup=keyboard)
+
+    async def handle_cancel_registration(self, callback: types.CallbackQuery, state: FSMContext) -> None:
+        """Handle registration cancellation"""
+        await callback.answer()
+        await state.clear()
+        
+        await callback.message.edit_text(
+            "❌ **Регистрация отменена**\n\n"
+            "Данные не сохранены. Вы можете начать заново в любое время.",
+            parse_mode="Markdown"
+        )
+        
+        keyboard = await get_main_menu_keyboard_for_user(callback.from_user.id)
+        await callback.message.answer("Главное меню:", reply_markup=keyboard)
 
 
 def setup_registration_handlers(dispatcher, *, upload_dir: Path, cache, bot) -> RegistrationHandler:

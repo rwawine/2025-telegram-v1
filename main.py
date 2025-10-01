@@ -11,7 +11,6 @@ from aiohttp import web as aiohttp_web
 from aiohttp_wsgi import WSGIHandler
 import os
 
-from bot import OptimizedBot
 from config import load_config
 from database import init_db_pool, run_migrations
 from services import BroadcastService, SecureLottery, set_main_loop
@@ -43,6 +42,8 @@ async def init_bot_fixed(config, cache):
     # Инициализируем context manager
     init_context_manager()
     
+    # Lazy import to avoid requiring aiogram when bot is disabled
+    from bot import OptimizedBot
     bot = OptimizedBot(
         token=config.bot_token,
         rate_limit=config.bot_rate_limit,
@@ -73,8 +74,15 @@ async def init_bot_fixed(config, cache):
     setup_fixed_fallback_handlers(bot.dispatcher)
     logger.info("✅ Fallback handlers registered (lowest priority)")
     
-    # 4. FSM MIDDLEWARE (для логирования и очистки)
+    # 4. Middleware: FSM (логирование/очистка) + Rate limit (антиспам)
     setup_fsm_middleware(bot.dispatcher)
+    from bot.middleware import setup_rate_limit_middleware
+    setup_rate_limit_middleware(
+        bot.dispatcher,
+        max_messages=5,  # UPDATED: более строгие лимиты
+        max_callbacks=3,  # UPDATED: отдельный лимит для кнопок
+        window_seconds=2.0  # UPDATED: меньшее окно
+    )
     logger.info("✅ FSM middleware configured")
     
     return bot
@@ -177,8 +185,8 @@ async def main() -> None:
     await site.start()
     
     logger.info(f"🚀 Web server started on http://{effective_host}:{effective_port}")
-    logger.info("🔗 Admin panel: http://localhost:5000")
-    logger.info("💻 Default login: admin / 123456")
+    logger.info(f"🔗 Admin panel: http://{effective_host}:{effective_port}/admin")
+    # Do not log default credentials; they are set in .env and hashed at runtime
     
     # Start backup service
     await backup_service.start()

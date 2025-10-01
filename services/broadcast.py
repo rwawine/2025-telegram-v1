@@ -87,12 +87,41 @@ class BroadcastService:
         caption: Optional[str] = None,
         job_id: Optional[int] = None,
     ) -> None:
+        # Helper to split text into Telegram-safe chunks
+        def _split_text(text: str, limit: int) -> list[str]:
+            if not text:
+                return []
+            parts: list[str] = []
+            start = 0
+            while start < len(text):
+                end = min(len(text), start + limit)
+                parts.append(text[start:end])
+                start = end
+            return parts
+
+        # Pre-split message into chunks of 4096
+        message_parts = _split_text(message, 4096)
+        # For media captions, Telegram limits are smaller (commonly 1024)
+        caption_limit = 1024
+        caption_text = caption or message
+        caption_head = _split_text(caption_text, caption_limit)[:1]
+        caption_tail = _split_text(caption_text[ len(caption_head[0]) if caption_head else 0 : ], 4096)
+
         for attempt in range(self.retry_attempts):
             try:
                 if media_path and media_type and os.path.exists(media_path):
-                    await self._send_media(telegram_id, media_path, media_type, caption or message)
+                    # Send media with safe caption head (<= caption_limit)
+                    safe_caption = caption_head[0] if caption_head else None
+                    await self._send_media(telegram_id, media_path, media_type, safe_caption)
+                    # Send remaining caption/body text parts as follow-up messages
+                    for part in caption_tail:
+                        await self.bot.send_message(telegram_id, part)
                 else:
-                    await self.bot.send_message(telegram_id, message)
+                    # Send message in chunks (<=4096)
+                    if not message_parts:
+                        message_parts = [""]
+                    for idx, part in enumerate(message_parts):
+                        await self.bot.send_message(telegram_id, part)
                 # Mark sent in queue if job_id provided
                 if job_id is not None:
                     try:

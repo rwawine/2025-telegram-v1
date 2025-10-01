@@ -28,6 +28,7 @@ class GlobalCommandsHandler:
         self.router.message.register(self.handle_cancel, Command("cancel"))
         self.router.message.register(self.handle_reset, Command("reset"))
         self.router.message.register(self.handle_help, Command("help"))
+        self.router.message.register(self.handle_menu, Command("menu"))
         
         # Экстренная навигация - работает везде
         self.router.message.register(self.emergency_menu, F.text == "🆘 МЕНЮ")
@@ -120,6 +121,12 @@ class GlobalCommandsHandler:
             help_text += "✅ Вы находитесь в главном меню"
         
         await message.answer(help_text, parse_mode="Markdown")
+
+    async def handle_menu(self, message: types.Message, state: FSMContext) -> None:
+        """Команда /menu - показать главное меню и сбросить состояние"""
+        await state.clear()
+        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+        await message.answer("🏠 Главное меню", reply_markup=keyboard)
     
     async def emergency_menu(self, message: types.Message, state: FSMContext) -> None:
         """Экстренное возвращение в меню"""

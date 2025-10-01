@@ -218,6 +218,18 @@ class SupportHandler:
             return
 
         if message.document:
+            # Reject overly large documents (> 10MB by default or MAX_FILE_SIZE)
+            try:
+                from config import load_config
+                max_size = load_config().max_file_size
+            except Exception:
+                max_size = 10 * 1024 * 1024
+            if getattr(message.document, 'file_size', 0) > max_size:
+                await message.answer(
+                    f"📄 Файл слишком большой. Максимальный размер: {max_size // (1024*1024)} МБ.",
+                    reply_markup=get_ticket_actions_keyboard(),
+                )
+                return
             file_id = message.document.file_id
             docs = list(data.get("attachments_docs") or [])
             docs.append(file_id)

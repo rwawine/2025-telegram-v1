@@ -10,9 +10,13 @@ import os
 from dataclasses import dataclass
 from typing import Optional, List
 
-# Load environment variables from .env file
-from dotenv import load_dotenv
-load_dotenv()
+# Load environment variables from .env file (optional in test env)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    # Proceed without .env if python-dotenv is not available
+    pass
 
 
 def _get_bool(name: str, default: bool = False) -> bool:
