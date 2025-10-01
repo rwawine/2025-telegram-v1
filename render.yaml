@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: lottery-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
+    plan: starter
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENABLE_BOT
+        value: "false"
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        value: "change-me-strong"
+      - key: DATABASE_PATH
+        value: /opt/render/project/src/data/lottery_bot.sqlite
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
+
+

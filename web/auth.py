@@ -48,7 +48,11 @@ def init_login_manager(app, credentials: AdminCredentials) -> AdminCredentials:
     """
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(f"Initializing login manager with credentials: username='{credentials.username}', password_hash='{credentials.password_hash}'")
+    # Avoid logging sensitive secrets in production
+    logger.info(
+        "Initializing login manager with credentials: username='%s', password_hash='<hidden>'",
+        credentials.username,
+    )
     
     login_manager.init_app(app)
     login_manager.login_view = "admin.login_page"
@@ -66,14 +70,14 @@ def init_login_manager(app, credentials: AdminCredentials) -> AdminCredentials:
 
     # Check if password needs to be hashed (only if it's not already hashed)
     if not credentials.password_hash.startswith("pbkdf2:") and not credentials.password_hash.startswith("scrypt:"):
-        logger.info(f"Password not hashed, hashing password: {credentials.password_hash}")
+        logger.info("Password not hashed, hashing password")
         credentials.password_hash = generate_password_hash(credentials.password_hash)
-        logger.info(f"Hashed password: {credentials.password_hash}")
+        logger.info("Password hashed for admin user '%s'", credentials.username)
     else:
-        logger.info(f"Password already hashed: {credentials.password_hash}")
+        logger.info("Password already hashed for admin user '%s'", credentials.username)
     
     app.config["ADMIN_CREDENTIALS"] = credentials
-    logger.info(f"Stored credentials in app config: username='{credentials.username}', password_hash='{credentials.password_hash}'")
+    logger.info("Stored admin credentials for username '%s' in app config", credentials.username)
     
     return credentials
 
@@ -95,13 +99,12 @@ def validate_credentials(credentials: AdminCredentials, username: str, password:
     """
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(f"Validating credentials: username='{username}', provided_password='{password}', expected_username='{credentials.username}'")
-    logger.info(f"Password hash: {credentials.password_hash}")
+    logger.info("Validating credentials: username='%s'", username)
     
     if username.lower() != credentials.username.lower():
         logger.info("Username mismatch")
         return False
     
     result = check_password_hash(credentials.password_hash, password)
-    logger.info(f"Password check result: {result}")
+    logger.info("Password check result: %s", result)
     return result

@@ -34,10 +34,24 @@ def create_required_directories() -> List[str]:
     return created
 
 
+def _running_on_render() -> bool:
+    """Detect Render environment to avoid writing read-only project files."""
+    import os
+    # Render sets RENDER and RENDER_SERVICE_* env vars
+    return bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID") or os.getenv("RENDER_INSTANCE_ID"))
+
+
 def create_env_file() -> None:
-    """Create .env file with secure defaults if it doesn't exist."""
+    """Create .env file with secure defaults if it doesn't exist.
+
+    On Render, skip writing .env because the filesystem at project root is
+    immutable during deploy and config should come from env vars.
+    """
     
     env_path = Path(".env")
+    if _running_on_render():
+        print("Running on Render – skipping .env creation (use Render env vars)")
+        return
     if env_path.exists():
         print(".env file already exists")
         return
@@ -114,7 +128,14 @@ SHARD_CACHE_TTL=300
 
 
 def create_gitignore() -> None:
-    """Create or update .gitignore file."""
+    """Create or update .gitignore file.
+
+    On Render, skip writing .gitignore for the same reason as .env.
+    """
+    
+    if _running_on_render():
+        print("Running on Render – skipping .gitignore creation")
+        return
     
     gitignore_content = """# Environment variables
 .env
@@ -347,11 +368,11 @@ def initialize_system() -> bool:
     else:
         print("All required directories already exist")
     
-    # 3. Create .env file
+    # 3. Create .env file (skipped on Render)
     print("\n🔐 Setting up environment configuration...")
     create_env_file()
     
-    # 4. Create .gitignore
+    # 4. Create .gitignore (skipped on Render)
     print("\n📝 Setting up .gitignore...")
     create_gitignore()
     
