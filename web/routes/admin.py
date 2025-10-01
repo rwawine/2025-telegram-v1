@@ -447,7 +447,14 @@ def export_participants():
                     p.status or "",
                     p.registration_date or "",
                 ]
-                yield ",".join([f'"{v.replace("\"","\"\"")}"' if "," in v or '"' in v else v for v in row]) + "\n"
+                # Escape quotes for CSV: replace " with ""
+                escaped_row = []
+                for v in row:
+                    if "," in v or '"' in v:
+                        escaped_row.append(f'"{v.replace(chr(34), chr(34)*2)}"')
+                    else:
+                        escaped_row.append(v)
+                yield ",".join(escaped_row) + "\n"
             page += 1
     from flask import Response
     return Response(generate(), mimetype="text/csv; charset=utf-8", headers={
@@ -475,7 +482,14 @@ def export_winners():
                 str(wd.get("draw_date","")),
                 wd.get("seed_hash","") or "",
             ]
-            yield ",".join([f'"{v.replace("\"","\"\"")}"' if "," in v or '"' in v else v for v in row]) + "\n"
+            # Escape quotes for CSV: replace " with ""
+            escaped_row = []
+            for v in row:
+                if "," in v or '"' in v:
+                    escaped_row.append(f'"{v.replace(chr(34), chr(34)*2)}"')
+                else:
+                    escaped_row.append(v)
+            yield ",".join(escaped_row) + "\n"
     from flask import Response
     return Response(generate(), mimetype="text/csv; charset=utf-8", headers={
         "Content-Disposition": "attachment; filename=winners.csv"
