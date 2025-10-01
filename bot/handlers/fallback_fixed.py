@@ -27,6 +27,7 @@ class FixedSmartFallbackHandler:
         self.router = Router()
         self.router.name = "smart_fallback"
         self._register_handlers()
+        self._register_quick_nav_handlers()  # Регистрируем сразу
     
     def setup(self, dispatcher) -> None:
         # Fallback handlers должны быть последними (самый низкий приоритет)
@@ -372,7 +373,7 @@ class FixedSmartFallbackHandler:
             ],
             [
                 InlineKeyboardButton(text="💬 В поддержку", callback_data="quick_nav_support"),
-                InlineKeyboardButton(text="❌ Отменить все", callback_data="quick_nav_cancel")
+                InlineKeyboardButton(text="❓ Помощь", callback_data="quick_nav_help")
             ]
         ])
         
@@ -381,8 +382,6 @@ class FixedSmartFallbackHandler:
             "Выберите, что вы хотели сделать:",
             reply_markup=quick_nav
         )
-        # Регистрируем обработчики быстрых действий
-        self._register_quick_nav_handlers()
     
     async def _provide_contextual_help(self, message: types.Message, state: FSMContext, is_media_error: bool = False):
         """Контекстная помощь для пользователей без FSM состояния"""
@@ -480,6 +479,29 @@ class FixedSmartFallbackHandler:
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
+            await callback.answer()
+
+        @self.router.callback_query(F.data == "quick_nav_help")  # noqa: F841
+        async def quick_nav_help(callback: types.CallbackQuery):
+            """Handle quick help navigation"""
+            help_text = (
+                "❓ **БЫСТРАЯ СПРАВКА**\n\n"
+                "🚀 **Регистрация** - подать заявку на участие в розыгрыше\n"
+                "📋 **Мой статус** - проверить статус вашей заявки\n" 
+                "💬 **Поддержка** - задать вопрос или сообщить о проблеме\n"
+                "📊 **О розыгрыше** - правила, призы и сроки\n\n"
+                "🎯 **Для участия нужно:**\n"
+                "1️⃣ Полное имя (как в документе)\n"
+                "2️⃣ Номер телефона\n"
+                "3️⃣ Номер карты лояльности\n"
+                "4️⃣ Фото лифлета\n\n"
+                "⚡ **Экстренные команды:**\n"
+                "• `/start` - перезапуск бота\n"
+                "• `/cancel` - отменить текущее действие\n"
+                "• `/help` - получить помощь"
+            )
+            
+            await callback.message.edit_text(help_text, parse_mode="Markdown")
             await callback.answer()
     
     async def handle_unknown_callback(self, callback: types.CallbackQuery):

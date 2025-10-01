@@ -396,7 +396,7 @@ class SmartFallbackHandler:
             await callback.answer()
         
         @self.router.callback_query(F.data == "quick_nav_help")
-        async def nav_to_help(callback: types.CallbackQuery):
+        async def nav_to_help(callback: types.CallbackQuery):  # noqa: F841
             help_text = (
                 "❓ **Краткая справка**\n\n"
                 "🚀 **Регистрация** - подать заявку на участие в розыгрыше\n"

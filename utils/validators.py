@@ -3,7 +3,7 @@
 import re
 
 
-PHONE_RE = re.compile(r"^\+?[0-9]{10,15}$")
+PHONE_RE = re.compile(r"^(\+7|7|8)?[0-9]{10}$")
 LOYALTY_RE = re.compile(r"^[A-Z0-9]{6,20}$")
 
 
@@ -39,7 +39,44 @@ def validate_full_name(value: str) -> bool:
 
 
 def validate_phone(value: str) -> bool:
-    return bool(value and PHONE_RE.match(value))
+    """Validate Russian phone numbers in formats: +79xxxxxxxxx, 79xxxxxxxxx, 89xxxxxxxxx"""
+    if not value:
+        return False
+    
+    # Очищаем номер от пробелов, дефисов и скобок
+    clean_phone = re.sub(r'[\s\-\(\)]', '', value)
+    
+    # Проверяем российские форматы
+    # +79xxxxxxxxx, 79xxxxxxxxx, 89xxxxxxxxx
+    if re.match(r'^(\+7|7|8)[0-9]{10}$', clean_phone):
+        # Дополнительная проверка: после кода страны должна быть 9
+        if clean_phone.startswith('+7'):
+            return clean_phone[2] == '9'
+        elif clean_phone.startswith('7'):
+            return clean_phone[1] == '9'
+        elif clean_phone.startswith('8'):
+            return clean_phone[1] == '9'
+    
+    return False
+
+
+def normalize_phone(value: str) -> str:
+    """Normalize Russian phone number to +79xxxxxxxxx format"""
+    if not value:
+        return value
+    
+    # Очищаем номер от пробелов, дефисов и скобок
+    clean_phone = re.sub(r'[\s\-\(\)]', '', value)
+    
+    # Нормализуем к формату +79xxxxxxxxx
+    if clean_phone.startswith('+7'):
+        return clean_phone
+    elif clean_phone.startswith('7') and len(clean_phone) == 11:
+        return '+' + clean_phone
+    elif clean_phone.startswith('8') and len(clean_phone) == 11:
+        return '+7' + clean_phone[1:]
+    
+    return value  # возвращаем как есть, если не удалось нормализовать
 
 
 def validate_loyalty_card(value: str) -> bool:
