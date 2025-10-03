@@ -619,9 +619,26 @@ body {
 }
 
 /* Таблицы */
+.table-responsive {
+    overflow-x: auto;
+    /* ВАЖНО: убираем overflow: hidden для выпадающих меню */
+    overflow-y: visible;
+}
+
 .data-table {
     width: 100%;
     border-collapse: collapse;
+}
+
+/* Исправление для dropdown в таблицах */
+.data-table .dropdown {
+    position: static;
+}
+
+.data-table .dropdown-menu {
+    position: absolute;
+    z-index: 1050; /* Bootstrap z-index для dropdown */
+    min-width: 160px;
 }
 
 .data-table th {
@@ -1132,6 +1149,18 @@ body {
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
     padding: var(--space-2) 0;
+    z-index: 1050;
+}
+
+/* Исправление позиционирования dropdown в таблицах */
+.table-responsive .dropdown-menu {
+    position: absolute !important;
+    z-index: 1060 !important;
+    transform: none;
+}
+
+.table-responsive .dropdown {
+    position: relative;
 }
 
 .dropdown-item {

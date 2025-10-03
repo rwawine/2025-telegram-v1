@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+import logging
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Dict, List
 
 from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
+
+logger = logging.getLogger(__name__)
 
 from bot.states import RegistrationStates
 from database.repositories import get_participant_status, insert_participants_batch
@@ -59,7 +62,7 @@ class RegistrationHandler:
         self.router.message.register(self.back_to_card, F.text.contains("Назад к карте"))
         self.router.message.register(self.ask_take_photo, RegistrationStates.upload_photo, F.text.contains("Сделать фото"))
         self.router.message.register(self.ask_choose_gallery, RegistrationStates.upload_photo, F.text.contains("галере"))
-        self.router.message.register(self.explain_leaflet, F.text.contains("лифлет"))
+        # Убрали обработчик reply-кнопки "лифлет" - теперь используем инлайн-кнопку
 
         # Content-type aware guards (must be before main state handlers)
         # Name step: block non-text and premature phone/contact
@@ -106,10 +109,14 @@ class RegistrationHandler:
         self.router.callback_query.register(self.handle_edit_photo, F.data == "edit_photo")
         self.router.callback_query.register(self.handle_confirm_registration, F.data == "confirm_registration")
         self.router.callback_query.register(self.handle_cancel_registration, F.data == "cancel_registration")
+        
+        # Добавляем обработчик инлайн-кнопки "Что такое лифлет?"
+        self.router.callback_query.register(self.handle_explain_leaflet_callback, F.data == "explain_leaflet")
 
         # Registration flow
         self.router.message.register(self.enter_name, RegistrationStates.enter_name)
-        self.router.message.register(self.enter_phone, RegistrationStates.enter_phone)
+        # IMPORTANT: limit phone step handler to text only so contacts go to handle_contact
+        self.router.message.register(self.enter_phone, RegistrationStates.enter_phone, F.text)
         self.router.message.register(self.enter_loyalty_card, RegistrationStates.enter_loyalty_card)
         self.router.message.register(self.upload_photo, RegistrationStates.upload_photo, F.photo)
 
@@ -213,19 +220,25 @@ class RegistrationHandler:
             )
             return
         if not validate_phone(phone_number):
-            await message.answer(
-                "❌ **Некорректный номер телефона**\n\n"
-                "✅ Правильно: +79001234567, 79001234567, 89001234567\n"
-                "❌ Неправильно: 8-900-123-45-67, +7 (900) 123-45-67\n\n"
-                "💡 **Поддерживаемые форматы:**\n"
-                "• +79xxxxxxxxx\n"
-                "• 79xxxxxxxxx\n" 
-                "• 89xxxxxxxxx\n\n"
-                "📊 Прогресс: 🟢🟢⚪⚪ (2/4)",
-                reply_markup=get_phone_input_keyboard(),
-                parse_mode="Markdown"
-            )
-            return
+            # Попробуем нормализовать и валидировать еще раз
+            normalized_phone = normalize_phone(phone_number)
+            if not validate_phone(normalized_phone):
+                await message.answer(
+                    "❌ **Некорректный номер телефона**\n\n"
+                    "✅ Правильно: +79001234567, +1234567890, 123-456-7890\n"
+                    "❌ Неправильно: слишком короткий номер, только буквы\n\n"
+                    "💡 **Поддерживаемые форматы:**\n"
+                    "• Любые международные номера\n"
+                    "• С кодом страны или без\n" 
+                    "• От 7 до 15 цифр\n\n"
+                    "📊 Прогресс: 🟢🟢⚪⚪ (2/4)",
+                    reply_markup=get_phone_input_keyboard(),
+                    parse_mode="Markdown"
+                )
+                return
+            else:
+                # Нормализация помогла, используем нормализованный номер
+                phone_number = normalized_phone
 
         # Нормализуем номер телефона к единому формату
         normalized_phone = normalize_phone(phone_number)
@@ -259,18 +272,30 @@ class RegistrationHandler:
             return
         await state.update_data(loyalty_card=loyalty_card)
         await state.set_state(RegistrationStates.upload_photo)
+        
+        # Создаем комбинированную клавиатуру: reply-кнопки сверху + инлайн-кнопка снизу
+        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+        inline_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❓ Что такое лифлет?", callback_data="explain_leaflet")]
+        ])
+        
         await message.answer(
             "🎯 Шаг 4 из 4: Фото лифлета\n\n"
-            "📸 Загрузите фото рекламного лифлета мероприятия\n\n"
+            "📸 Загрузите фото лифлета со всеми приклеенными стикерами\n\n"
             "✅ Способы загрузки:\n"
             "• Просто отправить фото сообщением\n"
             "• Нажать «📷 Сделать фото»\n"
             "• Нажать «🖼️ Выбрать из галереи»\n\n"
-            "💡 **Что такое лифлет?** Рекламная листовка или баннер события\n"
             "📐 Требования: четкое качество, размер до 10МБ\n\n"
             "📊 Прогресс: 🟢🟢🟢🟢 (4/4) - последний шаг!",
             reply_markup=get_photo_upload_keyboard(),
             parse_mode="Markdown"
+        )
+        
+        # Добавляем инлайн-кнопку сразу следующим сообщением
+        await message.answer(
+            "👇 Есть вопросы?",
+            reply_markup=inline_keyboard
         )
 
     async def upload_photo(self, message: types.Message, state: FSMContext) -> None:
@@ -382,6 +407,7 @@ class RegistrationHandler:
     # Auxiliary handlers
     async def handle_contact(self, message: types.Message, state: FSMContext) -> None:
         """Обработчик контактов (отправленного номера телефона)"""
+        print(f"📞 DEBUG REGISTRATION: handle_contact called!")
         from bot.context_manager import get_context_manager
         context_manager = get_context_manager()
         
@@ -399,15 +425,23 @@ class RegistrationHandler:
             
             phone = message.contact.phone_number
             
+            # DEBUG: Логируем полученный номер
+            print(f"📞 DEBUG: Received contact phone: '{phone}' (type: {type(phone)})")
+            logger.info(f"📞 Received contact phone: '{phone}' (type: {type(phone)})")
+            
             # Нормализуем номер телефона к единому формату
             normalized_phone = normalize_phone(phone)
+            print(f"📞 DEBUG: Normalized phone: '{normalized_phone}'")
+            logger.info(f"📞 Normalized phone: '{normalized_phone}'")
             
             # Валидируем нормализованный номер
             if not validate_phone(normalized_phone):
+                print(f"📞 DEBUG: Phone validation failed for: '{normalized_phone}'")
+                logger.warning(f"📞 Phone validation failed for: '{normalized_phone}'")
                 await message.answer(
                     "❌ **Получен некорректный номер телефона**\n\n"
-                    "Попробуйте ввести номер вручную в формате:\n"
-                    "+79001234567",
+                    "Попробуйте ввести номер вручную.\n"
+                    "Принимаются любые международные форматы.",
                     reply_markup=get_phone_input_keyboard(),
                     parse_mode="Markdown"
                 )
@@ -731,18 +765,34 @@ class RegistrationHandler:
     async def explain_leaflet(self, message: types.Message) -> None:
         await message.answer(
             "🎨 **Что такое лифлет?**\n\n"
-            "📄 **Лифлет** - это рекламная листовка или баннер мероприятия\n\n"
-            "✅ **Подойдет:**\n"
-            "• Флаер события или концерта\n"
-            "• Рекламный баннер в магазине\n"
-            "• Афиша мероприятия\n"
-            "• Листовка с акцией\n\n"
-            "❌ **НЕ подойдет:**\n"
-            "• Чек из магазина\n"
-            "• Фото товара\n"
-            "• Селфи или личные фото\n\n"
-            "💡 Главное - это должен быть **промо-материал события**\n\n"
+            "📄 **Лифлет** - это специальная листовка для сбора стикеров\n\n"
+            "✅ **Как его получить:**\n"
+            "• Совершайте покупки с картой лояльности Магнолии\n"
+            "• Оплачивайте улыбкой SberPay от 500 ₽\n"  
+            "• Или покупки от 1500 ₽ с товаром бренда-партнёра\n"
+            "• За каждую покупку получаете 3D-стикер с достопримечательностью Байкала\n\n"
+            "🎯 **Для участия в розыгрыше:**\n"
+            "• Соберите ВСЕ стикеры\n"
+            "• Заполните лифлет ПОЛНОСТЬЮ\n"
+            "• Сфотографируйте заполненный лифлет\n\n"
+            "🏆 **Победитель определяется среди тех, кто собрал полную коллекцию!**\n\n"
             "📊 Прогресс: 🟢🟢🟢🟢 (4/4) - последний шаг!",
+            parse_mode="Markdown"
+        )
+
+    async def handle_explain_leaflet_callback(self, callback: types.CallbackQuery) -> None:
+        """Обработчик инлайн-кнопки 'Что такое лифлет?' - показывает информацию без изменения состояния"""
+        await callback.answer()  # Убираем индикатор загрузки
+        
+        await callback.message.answer(
+            "🎨 **Что такое лифлет?**\n\n"
+            "📄 **Лифлет** - это специальная листовка для сбора стикеров\n\n"
+            "✅ **Как его получить:**\n"
+            "• Совершайте покупки с картой лояльности Магнолии\n"
+            "• Оплачивайте улыбкой SberPay от 500 ₽\n"  
+            "• Или покупки от 1500 ₽ с товаром бренда-партнёра\n"
+            "• За каждую покупку получаете 3D-стикер с достопримечательностью Байкала\n\n"
+            "🏆 **Победитель определяется среди тех, кто собрал полную коллекцию!**",
             parse_mode="Markdown"
         )
 

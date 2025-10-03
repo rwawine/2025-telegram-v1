@@ -149,7 +149,7 @@
                         </td>
                         <td>
                             <div class="dropdown">
-                                <button class="btn btn-sm btn-outline" data-bs-toggle="dropdown">
+                                <button class="btn btn-sm btn-outline" data-bs-toggle="dropdown" data-bs-display="static" data-bs-boundary="viewport">
                                     <i class="fas fa-ellipsis-v"></i>
                                 </button>
                                 <ul class="dropdown-menu">
@@ -334,6 +334,95 @@ document.addEventListener('DOMContentLoaded', function() {
             modalImg.src = img.getAttribute('data-photo-src') || img.src;
         }
     };
+
+    // Ensure dropdown menus in tables overlay the table (portal to body)
+    (function setupTableDropdownPortals() {
+        const dropdowns = document.querySelectorAll('.data-table .dropdown');
+        dropdowns.forEach(dd => {
+            const toggle = dd.querySelector('[data-bs-toggle="dropdown"]');
+            if (!toggle) return;
+
+            dd.addEventListener('show.bs.dropdown', function() {
+                const menu = dd.querySelector('.dropdown-menu');
+                if (!menu) return;
+
+                // Create placeholder to restore original position
+                const placeholder = document.createElement('span');
+                placeholder.style.display = 'none';
+                placeholder.setAttribute('data-dropdown-placeholder', '1');
+                menu._placeholder = placeholder;
+                menu._owner = dd;
+                menu.parentElement.insertBefore(placeholder, menu);
+
+                // Move menu to body and position it near the toggle
+                document.body.appendChild(menu);
+                menu.setAttribute('data-portal', '1');
+                menu.style.position = 'fixed';
+                menu.style.display = 'block';
+                menu.style.zIndex = '1080';
+                menu.style.transform = 'none';
+
+                const position = () => {
+                    const rect = toggle.getBoundingClientRect();
+                    // Calculate preferred left based on alignment
+                    let left = rect.left;
+                    // If right aligned
+                    if (menu.classList.contains('dropdown-menu-end')) {
+                        left = rect.right - menu.offsetWidth;
+                    }
+                    // Clamp to viewport
+                    const vw = document.documentElement.clientWidth;
+                    if (left + menu.offsetWidth > vw - 8) left = vw - menu.offsetWidth - 8;
+                    if (left < 8) left = 8;
+
+                    // Vertical position: prefer below, fallback above if not enough space
+                    let top = rect.bottom + 2;
+                    const vh = document.documentElement.clientHeight;
+                    if (top + menu.offsetHeight > vh - 8) {
+                        top = Math.max(8, rect.top - menu.offsetHeight - 2);
+                    }
+
+                    menu.style.left = left + 'px';
+                    menu.style.top = top + 'px';
+                };
+
+                // Store and bind reposition handlers
+                menu._reposition = position;
+                position();
+                window.addEventListener('scroll', position, true);
+                window.addEventListener('resize', position);
+
+                // Keep reference on owner for hide
+                dd._currentMenu = menu;
+            });
+
+            dd.addEventListener('hide.bs.dropdown', function() {
+                const menu = dd._currentMenu || dd.querySelector('.dropdown-menu');
+                if (!menu) return;
+
+                // Unbind listeners
+                if (menu._reposition) {
+                    window.removeEventListener('scroll', menu._reposition, true);
+                    window.removeEventListener('resize', menu._reposition);
+                }
+
+                // Restore to original place
+                if (menu._placeholder && menu._placeholder.parentNode) {
+                    menu.removeAttribute('data-portal');
+                    menu.style.position = '';
+                    menu.style.display = '';
+                    menu.style.left = '';
+                    menu.style.top = '';
+                    menu.style.transform = '';
+                    menu.style.zIndex = '';
+                    menu._placeholder.parentNode.insertBefore(menu, menu._placeholder);
+                    menu._placeholder.parentNode.removeChild(menu._placeholder);
+                }
+
+                dd._currentMenu = null;
+            });
+        });
+    })();
 });
 </script>
 {% endblock %}

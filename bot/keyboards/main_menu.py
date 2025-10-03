@@ -112,8 +112,7 @@ def get_info_menu_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📋 Правила участия", callback_data="info_rules")],
         [InlineKeyboardButton(text="🏆 Призы розыгрыша", callback_data="info_prizes")],
         [InlineKeyboardButton(text="📅 Сроки проведения", callback_data="info_schedule")],
-        [InlineKeyboardButton(text="⚖️ Гарантии честности", callback_data="info_fairness")],
-        [InlineKeyboardButton(text="📞 Контакты организаторов", callback_data="info_contacts")]
+        [InlineKeyboardButton(text="⚖️ Гарантии честности", callback_data="info_fairness")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 

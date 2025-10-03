@@ -7,9 +7,11 @@ from typing import Dict, Any
 
 from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.context_manager import get_context_manager, UserContext, UserAction
+from bot.states import RegistrationStates
 from bot.keyboards import (
     get_main_menu_keyboard_for_user,
     get_support_menu_keyboard,
@@ -69,6 +71,7 @@ class FixedSmartFallbackHandler:
         self.router.message.register(
             self.handle_unexpected_contact,
             F.contact,
+            ~StateFilter(RegistrationStates.enter_phone),  # НЕ обрабатывать в состоянии enter_phone
         )
         
         self.router.message.register(
@@ -320,8 +323,11 @@ class FixedSmartFallbackHandler:
         """Обработка контакта в неожиданных местах"""
         current_state = await state.get_state()
         
+        print(f"📞 DEBUG FALLBACK: Contact received, state: {current_state}")
+        
         # Если мы в состоянии ввода телефона, пропускаем - пусть обработает registration handler
         if current_state and "enter_phone" in current_state:
+            print(f"📞 DEBUG FALLBACK: Skipping contact in enter_phone state")
             return
         
         if current_state:

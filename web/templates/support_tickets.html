@@ -117,7 +117,7 @@
                 </div>
                 <div class="ticket-content">
                     <p class="ticket-description">
-                        {{ ticket.message or ticket.description or 'Описание отсутствует' }}
+                        {{ ticket.message or 'Описание отсутствует' }}
                     </p>
                     <div class="ticket-meta">
                         <span><i class="fas fa-user"></i> {{ ticket.user_name or ticket.full_name or 'Неизвестный' }}</span>

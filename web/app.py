@@ -139,9 +139,16 @@ def create_app(config, testing=False) -> Flask:
                 REQUEST_LATENCY.labels(method=request.method, path=path).observe(duration)
         except Exception:
             pass
-        # Add basic CSP to improve security while keeping current templates functional
+        # Add CSP with necessary permissions for Alpine.js and external resources
         try:
-            csp = "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+            # Allow unsafe-eval for Alpine.js, external CDNs, and font resources
+            csp = (
+                "default-src 'self'; "
+                "img-src 'self' data: blob:; "
+                "font-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com data:; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com"
+            )
             if not response.headers.get('Content-Security-Policy'):
                 response.headers['Content-Security-Policy'] = csp
             # Additional hardening headers

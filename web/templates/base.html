@@ -232,9 +232,51 @@
     
     <!-- Scripts - Bootstrap должен загружаться синхронно для data-bs-* атрибутов -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>window.CSRF_TOKEN = "{{ csrf_token() }}";</script>
+    
+    <!-- Подключаем Notyf с множественными fallback CDN -->
+    <script>
+    // Try to load Notyf from multiple CDN sources
+    function loadNotyf() {
+        const cdnUrls = [
+            'https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js',
+            'https://unpkg.com/notyf@3/notyf.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/notyf/3.10.0/notyf.min.js'
+        ];
+        
+        let currentIndex = 0;
+        
+        function tryLoadScript() {
+            if (currentIndex >= cdnUrls.length) {
+                console.warn('⚠️ All Notyf CDN sources failed, using fallback notifications');
+                return;
+            }
+            
+            const script = document.createElement('script');
+            script.src = cdnUrls[currentIndex];
+            script.async = false; // Load synchronously
+            
+            script.onload = function() {
+                console.log('✅ Notyf loaded from:', cdnUrls[currentIndex]);
+            };
+            
+            script.onerror = function() {
+                console.warn('❌ Failed to load Notyf from:', cdnUrls[currentIndex]);
+                currentIndex++;
+                tryLoadScript();
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        tryLoadScript();
+    }
+    
+    loadNotyf();
+    </script>
+    
+    <!-- Alpine.js загружается после всех основных библиотек -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <!-- Flash messages data -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -253,28 +295,112 @@
     {% endwith %}
 
     <script>
-    // Initialize notifications
-        const notyf = new Notyf({
-            duration: 5000,
-        position: { x: 'right', y: 'top' },
-            types: [
-            { type: 'info', background: 'hsl(63, 69%, 45%)', icon: false },
-            { type: 'success', background: 'hsl(142, 69%, 45%)', icon: false },
-            { type: 'warning', background: 'hsl(45, 95%, 55%)', icon: false },
-            { type: 'error', background: 'hsl(0, 84%, 60%)', icon: false }
-            ]
-        });
-
-        // Flash messages handling
-        document.addEventListener('DOMContentLoaded', function() {
+    // Initialize notifications with better fallback handling and debug info
+    let notyf;
+    
+    // Function to initialize Notyf with retry mechanism
+    function initializeNotyf() {
+        console.log('🔍 Checking for Notyf...', typeof Notyf);
+        
+        if (typeof Notyf !== 'undefined') {
+            try {
+                notyf = new Notyf({
+                    duration: 5000,
+                    position: { x: 'right', y: 'top' },
+                    types: [
+                        { type: 'info', background: 'hsl(63, 69%, 45%)', icon: false },
+                        { type: 'success', background: 'hsl(142, 69%, 45%)', icon: false },
+                        { type: 'warning', background: 'hsl(45, 95%, 55%)', icon: false },
+                        { type: 'error', background: 'hsl(0, 84%, 60%)', icon: false }
+                    ]
+                });
+                console.log('✅ Notyf initialized successfully');
+                
+                return true;
+            } catch (e) {
+                console.error('Failed to initialize Notyf:', e);
+            }
+        } else {
+            console.log('❌ Notyf not available, using fallback');
+        }
+        
+        // Fallback notification system
+        if (!window._fallbackWarningShown) {
+            console.warn('⚠️ Using fallback notification system');
+            window._fallbackWarningShown = true;
+        }
+        notyf = {
+            success: function(msg) { 
+                showFallbackNotification('✅ ' + msg, 'success'); 
+            },
+            error: function(msg) { 
+                showFallbackNotification('❌ ' + msg, 'error'); 
+            },
+            open: function(opts) { 
+                const prefix = opts.type === 'success' ? '✅ ' : 
+                              opts.type === 'error' ? '❌ ' : 
+                              opts.type === 'warning' ? '⚠️ ' : 'ℹ️ ';
+                showFallbackNotification(prefix + opts.message, opts.type); 
+            }
+        };
+        
+        return false;
+    }
+    
+    // Fallback notification display function
+    function showFallbackNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            max-width: 400px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            background: ${type === 'success' ? 'hsl(142, 69%, 45%)' : 
+                        type === 'error' ? 'hsl(0, 84%, 60%)' :
+                        type === 'warning' ? 'hsl(45, 95%, 55%)' : 'hsl(63, 69%, 45%)'};
+        `;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => notification.style.opacity = '1', 100);
+        
+        // Remove after delay
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => document.body.removeChild(notification), 300);
+        }, 5000);
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Try to initialize Notyf immediately
+        let notyfReady = initializeNotyf();
+        
+        // If Notyf not ready, try again after a short delay
+        if (!notyfReady) {
+            setTimeout(() => {
+                initializeNotyf();
+            }, 500);
+        }
+        
+        // Flash messages handling with delayed retry
+        setTimeout(() => {
             var flashMessagesElement = document.getElementById('flash-messages-data');
-            if (flashMessagesElement) {
+            if (flashMessagesElement && notyf) {
                 var flashMessages = JSON.parse(flashMessagesElement.textContent);
                 flashMessages.forEach(function(flash) {
                     notyf.open({ type: flash.type, message: flash.message });
                 });
             }
-        });
+        }, 100); // Small delay to ensure notyf is fully initialized
+    });
 
     // Sidebar functionality
     const sidebar = document.getElementById('sidebar');

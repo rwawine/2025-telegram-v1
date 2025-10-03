@@ -39,44 +39,46 @@ def validate_full_name(value: str) -> bool:
 
 
 def validate_phone(value: str) -> bool:
-    """Validate Russian phone numbers in formats: +79xxxxxxxxx, 79xxxxxxxxx, 89xxxxxxxxx"""
+    """Validate phone numbers - accepts any international format"""
     if not value:
         return False
     
     # Очищаем номер от пробелов, дефисов и скобок
     clean_phone = re.sub(r'[\s\-\(\)]', '', value)
     
-    # Проверяем российские форматы
-    # +79xxxxxxxxx, 79xxxxxxxxx, 89xxxxxxxxx
-    if re.match(r'^(\+7|7|8)[0-9]{10}$', clean_phone):
-        # Дополнительная проверка: после кода страны должна быть 9
-        if clean_phone.startswith('+7'):
-            return clean_phone[2] == '9'
-        elif clean_phone.startswith('7'):
-            return clean_phone[1] == '9'
-        elif clean_phone.startswith('8'):
-            return clean_phone[1] == '9'
+    # Принимаем любые номера от 7 до 15 цифр (международный стандарт E.164)
+    # Может начинаться с + или без него
+    if re.match(r'^\+?[0-9]{7,15}$', clean_phone):
+        return True
     
     return False
 
 
 def normalize_phone(value: str) -> str:
-    """Normalize Russian phone number to +79xxxxxxxxx format"""
+    """Normalize phone number to international format"""
     if not value:
         return value
     
     # Очищаем номер от пробелов, дефисов и скобок
     clean_phone = re.sub(r'[\s\-\(\)]', '', value)
     
-    # Нормализуем к формату +79xxxxxxxxx
-    if clean_phone.startswith('+7'):
+    # Если номер уже начинается с +, оставляем как есть
+    if clean_phone.startswith('+'):
         return clean_phone
-    elif clean_phone.startswith('7') and len(clean_phone) == 11:
-        return '+' + clean_phone
-    elif clean_phone.startswith('8') and len(clean_phone) == 11:
+    
+    # Если российский номер начинается с 8, заменяем на +7
+    if clean_phone.startswith('8') and len(clean_phone) == 11:
         return '+7' + clean_phone[1:]
     
-    return value  # возвращаем как есть, если не удалось нормализовать
+    # Если номер начинается с 7 и имеет 11 цифр, добавляем +
+    if clean_phone.startswith('7') and len(clean_phone) == 11:
+        return '+' + clean_phone
+    
+    # Для остальных номеров добавляем + если его нет
+    if not clean_phone.startswith('+') and len(clean_phone) >= 7:
+        return '+' + clean_phone
+    
+    return clean_phone
 
 
 def validate_loyalty_card(value: str) -> bool:

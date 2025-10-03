@@ -157,8 +157,14 @@ class BackupService:
         }
         
         try:
-            with open(manifest_path, 'w', encoding='utf-8') as f:
-                json.dump(manifest, f, indent=2, ensure_ascii=False)
+            manifest_content = json.dumps(manifest, indent=2, ensure_ascii=False)
+            
+            if self.compress:
+                with gzip.open(manifest_path, 'wt', encoding='utf-8') as f:
+                    f.write(manifest_content)
+            else:
+                with open(manifest_path, 'w', encoding='utf-8') as f:
+                    f.write(manifest_content)
             
             logger.debug(f"Backup manifest created: {manifest_path}")
             return manifest_path
@@ -168,37 +174,77 @@ class BackupService:
             return manifest_path
     
     def cleanup_old_backups(self):
-        """Remove backup files older than max_age_days."""
+        """Keep only the latest 2 backup sets (based on manifest files)."""
         try:
-            import time
-            current_time = time.time()
-            max_age_seconds = self.max_age_days * 24 * 3600  # Convert days to seconds
+            # Find all manifest files to identify backup sets
+            manifest_files = []
+            for file_path in self.backup_dir.iterdir():
+                if file_path.is_file() and file_path.name.startswith("lottery_bot_backup_") and "_manifest.json" in file_path.name:
+                    manifest_files.append(file_path)
             
+            # Sort by creation time (newest first)
+            manifest_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            
+            # Keep only the latest 2 backup sets
+            keep_count = 2
+            if len(manifest_files) <= keep_count:
+                logger.debug(f"Only {len(manifest_files)} backup sets found, no cleanup needed")
+                return
+            
+            # Files to keep (from the latest 2 backup sets)
+            files_to_keep = set()
+            
+            for manifest_file in manifest_files[:keep_count]:
+                # Parse manifest to get all related files
+                try:
+                    # Try to read as gzip first, then as regular JSON
+                    manifest_data = None
+                    try:
+                        with gzip.open(manifest_file, 'rt', encoding='utf-8') as f:
+                            manifest_data = json.load(f)
+                    except (gzip.BadGzipFile, OSError):
+                        # Not a gzip file, try as regular JSON
+                        with open(manifest_file, 'r', encoding='utf-8') as f:
+                            manifest_data = json.load(f)
+                    
+                    if manifest_data:
+                        # Add manifest file itself
+                        files_to_keep.add(manifest_file.name)
+                        
+                        # Add all files from this backup set
+                        if manifest_data.get('database_backup'):
+                            files_to_keep.add(manifest_data['database_backup'])
+                        
+                        for config_file in manifest_data.get('config_backups', []):
+                            files_to_keep.add(config_file)
+                        
+                        if manifest_data.get('uploads_backup'):
+                            files_to_keep.add(manifest_data['uploads_backup'])
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to parse manifest {manifest_file}: {e}")
+                    # Keep the manifest file anyway to be safe
+                    files_to_keep.add(manifest_file.name)
+            
+            # Remove old backup files
             removed_count = 0
             removed_size = 0
             
-            # Check all backup files
             for file_path in self.backup_dir.iterdir():
                 if file_path.is_file() and file_path.name.startswith("lottery_bot_backup_"):
-                    file_age = current_time - file_path.stat().st_mtime
-                    
-                    if file_age > max_age_seconds:
+                    if file_path.name not in files_to_keep:
                         try:
                             file_size = file_path.stat().st_size
                             file_path.unlink()
                             removed_count += 1
                             removed_size += file_size
-                            
-                            # Calculate age in days for logging
-                            age_days = file_age / (24 * 3600)
-                            logger.debug(f"Removed old backup: {file_path.name} (age: {age_days:.1f} days)")
-                            
+                            logger.debug(f"Removed old backup: {file_path.name}")
                         except Exception as e:
                             logger.warning(f"Failed to remove old backup {file_path}: {e}")
             
             if removed_count > 0:
                 removed_mb = removed_size / (1024 * 1024)
-                logger.info(f"🧹 Cleaned up {removed_count} old backup files ({removed_mb:.1f} MB freed)")
+                logger.info(f"🧹 Cleaned up {removed_count} old backup files ({removed_mb:.1f} MB freed), kept latest {keep_count} backup sets")
             else:
                 logger.debug("No old backups to clean up")
                 

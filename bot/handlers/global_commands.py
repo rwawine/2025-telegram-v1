@@ -33,6 +33,12 @@ class GlobalCommandsHandler:
         # Экстренная навигация - работает везде
         self.router.message.register(self.emergency_menu, F.text == "🆘 МЕНЮ")
         self.router.message.register(self.emergency_cancel, F.text == "❌ ОТМЕНА")
+        
+        # Кнопка "Назад в меню" из любого состояния
+        self.router.message.register(self.back_to_menu, F.text.contains("Назад в меню"))
+        
+        # Кнопка "Главное меню" из любого состояния (включая поддержку)
+        self.router.message.register(self.back_to_menu, F.text.contains("Главное меню"))
     
     async def handle_start(self, message: types.Message, state: FSMContext) -> None:
         """Команда /start - сбрасывает состояние и показывает меню"""
@@ -141,6 +147,28 @@ class GlobalCommandsHandler:
     async def emergency_cancel(self, message: types.Message, state: FSMContext) -> None:
         """Экстренная отмена действия"""
         await self.handle_cancel(message, state)
+    
+    async def back_to_menu(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик кнопки 'Назад в меню' из любого состояния"""
+        # Очищаем FSM состояние
+        await state.clear()
+        
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id,
+                UserContext.NAVIGATION,
+                UserAction.BUTTON_CLICK
+            )
+        
+        # Возвращаем в главное меню
+        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+        await message.answer(
+            "🏠 **Главное меню**\n\n"
+            "Вы вернулись в главное меню. Все незавершенные действия отменены.",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
 
 
 def setup_global_commands(dispatcher) -> GlobalCommandsHandler:
