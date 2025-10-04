@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import os
 from enum import Enum
-from typing import Iterable, List, Dict, Any, Optional, Union
+from typing import Iterable, List, Optional
 
 from aiogram import Bot
-from aiogram.types import InputFile
+from aiogram.types import FSInputFile
 
+from core import get_logger, TelegramLimits, BroadcastDefaults
+from core.exceptions import BroadcastError
 from database.repositories import (
     store_broadcast_results,
     mark_broadcast_sent,
@@ -17,8 +19,11 @@ from database.repositories import (
     set_broadcast_job_completed,
 )
 
+logger = get_logger(__name__)
+
 
 class MediaType(Enum):
+    """Media types supported by Telegram."""
     PHOTO = "photo"
     VIDEO = "video"
     DOCUMENT = "document"
@@ -26,11 +31,63 @@ class MediaType(Enum):
 
 
 class BroadcastService:
-    def __init__(self, bot: Bot, rate_limit: int = 30, batch_size: int = 30, retry_attempts: int = 3) -> None:
+    """Service for sending mass messages to multiple recipients.
+    
+    Supports:
+    - Text messages with automatic chunking for long texts
+    - Media attachments (photo, video, document, audio)
+    - Retry mechanism with exponential backoff
+    - Rate limiting to comply with Telegram limits
+    - Job-based status tracking
+    """
+    
+    def __init__(
+        self, 
+        bot: Bot, 
+        rate_limit: int = BroadcastDefaults.RATE_LIMIT,
+        batch_size: int = BroadcastDefaults.BATCH_SIZE,
+        retry_attempts: int = BroadcastDefaults.RETRY_ATTEMPTS
+    ) -> None:
+        """Initialize broadcast service.
+        
+        Args:
+            bot: Aiogram Bot instance
+            rate_limit: Maximum messages per second
+            batch_size: Number of messages to send in parallel
+            retry_attempts: Number of retry attempts for failed messages
+        """
         self.bot = bot
         self.rate_limit = rate_limit
         self.batch_size = batch_size
         self.retry_attempts = retry_attempts
+        
+        logger.info(
+            f"BroadcastService initialized: "
+            f"rate_limit={rate_limit}, batch_size={batch_size}, "
+            f"retry_attempts={retry_attempts}"
+        )
+    
+    @staticmethod
+    def _split_text(text: str, limit: int) -> List[str]:
+        """Split text into chunks respecting Telegram limits.
+        
+        Args:
+            text: Text to split
+            limit: Maximum length per chunk
+            
+        Returns:
+            List of text chunks
+        """
+        if not text:
+            return []
+        
+        parts: List[str] = []
+        start = 0
+        while start < len(text):
+            end = min(len(text), start + limit)
+            parts.append(text[start:end])
+            start = end
+        return parts
 
     async def send_broadcast(
         self,
@@ -87,25 +144,26 @@ class BroadcastService:
         caption: Optional[str] = None,
         job_id: Optional[int] = None,
     ) -> None:
-        # Helper to split text into Telegram-safe chunks
-        def _split_text(text: str, limit: int) -> list[str]:
-            if not text:
-                return []
-            parts: list[str] = []
-            start = 0
-            while start < len(text):
-                end = min(len(text), start + limit)
-                parts.append(text[start:end])
-                start = end
-            return parts
-
-        # Pre-split message into chunks of 4096
-        message_parts = _split_text(message, 4096)
-        # For media captions, Telegram limits are smaller (commonly 1024)
-        caption_limit = 1024
+        """Send message with retry mechanism.
+        
+        Args:
+            telegram_id: Recipient's Telegram ID
+            message: Message text
+            media_path: Optional path to media file
+            media_type: Type of media
+            caption: Caption for media
+            job_id: Optional broadcast job ID for tracking
+        """
+        # Pre-split message into chunks
+        message_parts = self._split_text(message, TelegramLimits.MESSAGE_MAX_LENGTH)
+        
+        # For media captions, use smaller limit
         caption_text = caption or message
-        caption_head = _split_text(caption_text, caption_limit)[:1]
-        caption_tail = _split_text(caption_text[ len(caption_head[0]) if caption_head else 0 : ], 4096)
+        caption_head = self._split_text(caption_text, TelegramLimits.CAPTION_MAX_LENGTH)[:1]
+        caption_tail = self._split_text(
+            caption_text[len(caption_head[0]) if caption_head else 0:],
+            TelegramLimits.MESSAGE_MAX_LENGTH
+        )
 
         for attempt in range(self.retry_attempts):
             try:
@@ -129,8 +187,16 @@ class BroadcastService:
                     except Exception:
                         pass
                 return
-            except Exception:
-                await asyncio.sleep(2 ** attempt)
+            except Exception as e:
+                if attempt < self.retry_attempts - 1:
+                    delay = BroadcastDefaults.RETRY_DELAY ** attempt
+                    logger.warning(
+                        f"Failed to send to {telegram_id}, attempt {attempt + 1}/{self.retry_attempts}. "
+                        f"Retrying in {delay}s. Error: {e}"
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(f"Failed to send to {telegram_id} after {self.retry_attempts} attempts: {e}")
         # Mark failed in queue if job_id provided; fallback to legacy store
         if job_id is not None:
             try:
@@ -148,7 +214,7 @@ class BroadcastService:
         caption: str
     ) -> None:
         """Send media content based on type."""
-        media_file = InputFile(media_path)
+        media_file = FSInputFile(media_path)
         
         if media_type == MediaType.PHOTO.value:
             await self.bot.send_photo(telegram_id, media_file, caption=caption)

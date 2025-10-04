@@ -1,0 +1,152 @@
+2025-10-05 01:16:10,081 | [31mERROR[0m | app | <module>:38 | Application failed: cannot import name 'init_audit_service' from 'services.audit_service' (D:\Working\2025-telegram-v1\services\audit_service.py)
+Traceback (most recent call last):
+  File "D:\Working\2025-telegram-v1\main.py", line 34, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "D:\Working\2025-telegram-v1\main.py", line 28, in main
+    await app.initialize()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 56, in initialize
+    await self._init_web_server()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 161, in _init_web_server
+    from web import create_app
+  File "D:\Working\2025-telegram-v1\web\__init__.py", line 3, in <module>
+    from .app import create_app
+  File "D:\Working\2025-telegram-v1\web\app.py", line 16, in <module>
+    from web.routes import register_routes
+  File "D:\Working\2025-telegram-v1\web\routes\__init__.py", line 9, in <module>
+    from .admin_new_features import admin_new_bp
+  File "D:\Working\2025-telegram-v1\web\routes\admin_new_features.py", line 13, in <module>
+    from services.audit_service import init_audit_service, get_audit_service
+ImportError: cannot import name 'init_audit_service' from 'services.audit_service' (D:\Working\2025-telegram-v1\services\audit_service.py). Did you mean: 'audit_service'?
+2025-10-05 01:21:31,880 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-10-05 01:24:56,063 | [31mERROR[0m | app | <module>:38 | Application failed: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+Traceback (most recent call last):
+  File "D:\Working\2025-telegram-v1\main.py", line 34, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "D:\Working\2025-telegram-v1\main.py", line 28, in main
+    await app.initialize()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 56, in initialize
+    await self._init_web_server()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 193, in _init_web_server
+    await site.start()
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\site-packages\aiohttp\web_runner.py", line 121, in start
+    self._server = await loop.create_server(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 1630, in create_server
+    raise OSError(err.errno, msg) from None
+OSError: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2025-10-05 01:28:24,417 | [31mERROR[0m | app | <module>:38 | Application failed: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+Traceback (most recent call last):
+  File "D:\Working\2025-telegram-v1\main.py", line 34, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "D:\Working\2025-telegram-v1\main.py", line 28, in main
+    await app.initialize()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 56, in initialize
+    await self._init_web_server()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 193, in _init_web_server
+    await site.start()
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\site-packages\aiohttp\web_runner.py", line 121, in start
+    self._server = await loop.create_server(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 1630, in create_server
+    raise OSError(err.errno, msg) from None
+OSError: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2025-10-05 01:39:52,573 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-10-05 01:41:32,585 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-10-05 01:51:09,056 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-10-05 01:56:05,363 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-10-05 01:59:49,136 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-10-05 02:06:47,542 | [31mERROR[0m | app | <module>:38 | Application failed: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+Traceback (most recent call last):
+  File "D:\Working\2025-telegram-v1\main.py", line 34, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "D:\Working\2025-telegram-v1\main.py", line 28, in main
+    await app.initialize()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 56, in initialize
+    await self._init_web_server()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 193, in _init_web_server
+    await site.start()
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\site-packages\aiohttp\web_runner.py", line 121, in start
+    self._server = await loop.create_server(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 1630, in create_server
+    raise OSError(err.errno, msg) from None
+OSError: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2025-10-05 02:09:58,494 | [31mERROR[0m | app | <module>:38 | Application failed: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+Traceback (most recent call last):
+  File "D:\Working\2025-telegram-v1\main.py", line 34, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "D:\Working\2025-telegram-v1\main.py", line 28, in main
+    await app.initialize()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 56, in initialize
+    await self._init_web_server()
+  File "D:\Working\2025-telegram-v1\core\app_initializer.py", line 193, in _init_web_server
+    await site.start()
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\site-packages\aiohttp\web_runner.py", line 121, in start
+    self._server = await loop.create_server(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "C:\Users\chisme\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 1630, in create_server
+    raise OSError(err.errno, msg) from None
+OSError: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2025-10-05 02:14:54,172 | [32mINFO[0m | app | <module>:36 | Application stopped by user

@@ -14,10 +14,23 @@ from database.admin_queries import AdminDatabase
 from services import run_coroutine_sync, submit_coroutine
 from services.broadcast import BroadcastService
 from services.lottery import SecureLottery
+from services.audit_service import AuditService
 from web.auth import AdminCredentials, AdminUser, validate_credentials
+import json
+import asyncio
 
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+
+def _run_async(coro):
+    """Execute async function in sync context."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 def _get_admin_db() -> AdminDatabase:
@@ -275,6 +288,21 @@ def participants_mass_update():
             )
             conn.commit()
     
+    # Log to audit
+    try:
+        _run_async(AuditService.log_action(
+            admin_username=current_user.username,
+            action_type="MASS_MODERATE",
+            entity_type="participants",
+            entity_id=None,
+            new_value=json.dumps({"status": status, "count": len(ids), "participant_ids": [int(pid) for pid in ids]}),
+            reason=notes or f"Массовое изменение статуса на {status} для {len(ids)} участников",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        ))
+    except Exception as e:
+        current_app.logger.error(f"Failed to log audit: {e}")
+    
     # Send notifications if requested
     if send_notification:
         try:
@@ -371,6 +399,21 @@ def run_lottery():
     try:
         run_id, winners = run_coroutine_sync(lottery.select_winners(winners_count))
         flash(f"Розыгрыш #{run_id} завершён. Победителей: {len(winners)}", "success")
+        
+        # Log to audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="RUN_LOTTERY",
+                entity_type="lottery",
+                entity_id=run_id,
+                new_value=json.dumps({"winners_count": len(winners), "requested_count": winners_count}),
+                reason=f"Запущен розыгрыш #{run_id}, выбрано {len(winners)} победителей",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as e:
+            current_app.logger.error(f"Failed to log audit: {e}")
     except Exception as exc:
         current_app.logger.exception("Ошибка запуска розыгрыша")
         flash(f"Не удалось провести розыгрыш: {exc}", "error")
@@ -535,12 +578,27 @@ def update_ticket_status(ticket_id: int):
     db.update_ticket_status(ticket_id, status)
     sent_to_user = False
     warn_text = None
+    
+    # Log to audit
+    try:
+        _run_async(AuditService.log_action(
+            admin_username=current_user.username,
+            action_type="UPDATE_TICKET_STATUS",
+            entity_type="support_ticket",
+            entity_id=ticket_id,
+            new_value=status,
+            reason=response_message.strip() if response_message and response_message.strip() else f"Изменен статус на {status}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        ))
+    except Exception as e:
+        current_app.logger.error(f"Failed to log audit: {e}")
 
     if response_message and response_message.strip():
         try:
             with db._connect() as conn:
                 conn.execute(
-                    "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, sent_at) VALUES (?, ?, ?, datetime('now'))",
+                    "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, sent_at) VALUES (?, ?, ?, datetime('now', '+3 hours'))",
                     (ticket_id, "admin", response_message.strip())
                 )
                 ticket_info = conn.execute(
@@ -802,6 +860,27 @@ def create_broadcast():
     
     # Update broadcast job with title and target audience
     db.update_broadcast_job(job_id, title=title, target_audience=target_audience)
+    
+    # Log to audit
+    try:
+        _run_async(AuditService.log_action(
+            admin_username=current_user.username,
+            action_type="CREATE_BROADCAST",
+            entity_type="broadcast",
+            entity_id=job_id,
+            new_value=json.dumps({
+                "title": title,
+                "target_audience": target_audience,
+                "recipient_count": len(participant_ids),
+                "has_media": media_path is not None,
+                "media_type": media_type
+            }),
+            reason=f"Создана рассылка '{title}' для {len(participant_ids)} получателей",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        ))
+    except Exception as e:
+        current_app.logger.error(f"Failed to log audit: {e}")
 
     # Start broadcast sending if BroadcastService is available
     try:
@@ -863,6 +942,11 @@ def update_single_participant_status(participant_id: int):
     
     db = _get_admin_db()
     
+    # Get old participant data for audit
+    participants, _ = db.list_participants(page=1, per_page=10000)
+    participant = next((p for p in participants if p.id == participant_id), None)
+    old_status = participant.status if participant else "unknown"
+    
     # Update participant status
     db.update_participants_status([participant_id], status)
     
@@ -874,6 +958,22 @@ def update_single_participant_status(participant_id: int):
                 (notes, participant_id)
             )
             conn.commit()
+    
+    # Log to audit
+    try:
+        _run_async(AuditService.log_action(
+            admin_username=current_user.username,
+            action_type="MODERATE_PARTICIPANT",
+            entity_type="participant",
+            entity_id=participant_id,
+            old_value=old_status,
+            new_value=status,
+            reason=notes or f"Изменение статуса на {status}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        ))
+    except Exception as e:
+        current_app.logger.error(f"Failed to log audit: {e}")
     
     # Send notification if requested
     if send_notification:
@@ -1049,6 +1149,137 @@ def delete_winner(winner_id: int):
     return redirect(url_for("admin.lottery"))
 
 
+@admin_bp.route("/lottery/notify_winners", methods=["POST"])
+@login_required
+def notify_winners():
+    """Notify all winners about their prizes."""
+    db = _get_admin_db()
+    
+    try:
+        from services import get_notification_service
+        notification_service = get_notification_service()
+    except RuntimeError:
+        flash("Сервис уведомлений не инициализирован", "error")
+        return redirect(url_for("admin.lottery"))
+    
+    try:
+        # Get all winners with participant details
+        winners = db.list_winners(limit=10000)
+        if not winners:
+            flash("Нет победителей для уведомления", "warning")
+            return redirect(url_for("admin.lottery"))
+        
+        # Get run_id from request or use latest run
+        run_id = request.form.get("run_id", type=int)
+        if run_id:
+            winners = [w for w in winners if w.get("run_id") == run_id]
+        
+        if not winners:
+            flash("Нет победителей в выбранном розыгрыше", "warning")
+            return redirect(url_for("admin.lottery"))
+        
+        # Send notifications to all winners
+        success_count = 0
+        error_count = 0
+        
+        for winner in winners:
+            try:
+                participant_id = winner.get("participant_id")
+                if not participant_id:
+                    continue
+                
+                # Get participant telegram ID
+                telegram_ids = db.get_telegram_ids_for_participants([participant_id])
+                if not telegram_ids:
+                    error_count += 1
+                    continue
+                
+                telegram_id = telegram_ids[0]
+                prize = winner.get("prize_description", "Приз")
+                
+                # Send winner notification
+                success = run_coroutine_sync(
+                    notification_service.notify_lottery_winner(
+                        telegram_id,
+                        prize
+                    )
+                )
+                
+                if success:
+                    success_count += 1
+                else:
+                    error_count += 1
+                    
+            except Exception as e:
+                current_app.logger.error(f"Failed to notify winner {winner.get('id')}: {e}")
+                error_count += 1
+        
+        # Show result
+        if success_count > 0:
+            flash(f"Успешно уведомлено победителей: {success_count}", "success")
+        if error_count > 0:
+            flash(f"Ошибок при уведомлении: {error_count}", "warning")
+        
+    except Exception as e:
+        current_app.logger.exception("Ошибка при уведомлении победителей")
+        flash(f"Ошибка при уведомлении победителей: {e}", "error")
+    
+    return redirect(url_for("admin.lottery"))
+
+
+@admin_bp.route("/lottery/notify_winner/<int:winner_id>", methods=["POST"])
+@login_required
+def notify_single_winner(winner_id: int):
+    """Notify a single winner about their prize."""
+    db = _get_admin_db()
+    
+    try:
+        from services import get_notification_service
+        notification_service = get_notification_service()
+    except RuntimeError:
+        flash("Сервис уведомлений не инициализирован", "error")
+        return redirect(url_for("admin.winner_detail", winner_id=winner_id))
+    
+    try:
+        # Get winner details
+        winners = db.list_winners(limit=1000)
+        winner = next((w for w in winners if w["id"] == winner_id), None)
+        
+        if not winner:
+            flash("Победитель не найден", "error")
+            return redirect(url_for("admin.lottery"))
+        
+        # Get participant telegram ID
+        participant_id = winner.get("participant_id")
+        telegram_ids = db.get_telegram_ids_for_participants([participant_id])
+        
+        if not telegram_ids:
+            flash("Не удалось получить Telegram ID победителя", "error")
+            return redirect(url_for("admin.winner_detail", winner_id=winner_id))
+        
+        telegram_id = telegram_ids[0]
+        prize = winner.get("prize_description", "Приз")
+        
+        # Send notification
+        success = run_coroutine_sync(
+            notification_service.notify_lottery_winner(
+                telegram_id,
+                prize
+            )
+        )
+        
+        if success:
+            flash("Победитель успешно уведомлен!", "success")
+        else:
+            flash("Не удалось отправить уведомление победителю", "error")
+            
+    except Exception as e:
+        current_app.logger.exception(f"Ошибка при уведомлении победителя {winner_id}")
+        flash(f"Ошибка при уведомлении: {e}", "error")
+    
+    return redirect(url_for("admin.winner_detail", winner_id=winner_id))
+
+
 @admin_bp.route("/broadcasts/<int:broadcast_id>/send", methods=["POST"])
 @login_required
 def send_broadcast(broadcast_id: int):
@@ -1089,6 +1320,21 @@ def send_broadcast(broadcast_id: int):
                         job_id=broadcast_id,
                     ))
                     flash(f"Рассылка начала отправку ({len(recipient_tg_ids)} получателей)", "success")
+                    
+                    # Log to audit
+                    try:
+                        _run_async(AuditService.log_action(
+                            admin_username=current_user.username,
+                            action_type="SEND_BROADCAST",
+                            entity_type="broadcast",
+                            entity_id=broadcast_id,
+                            new_value=json.dumps({"recipient_count": len(recipient_tg_ids), "status": "sending"}),
+                            reason=f"Запущена отправка рассылки #{broadcast_id} для {len(recipient_tg_ids)} получателей",
+                            ip_address=request.remote_addr,
+                            user_agent=request.headers.get('User-Agent')
+                        ))
+                    except Exception as e:
+                        current_app.logger.error(f"Failed to log audit: {e}")
                 except Exception as e:
                     current_app.logger.exception("Ошибка запуска рассылки")
                     db.update_broadcast_status(broadcast_id, "failed")
@@ -1234,6 +1480,69 @@ def serve_upload(filename: str):
     # Use send_from_directory with proper path handling
     import flask
     return flask.send_from_directory(str(base_path), safe_name)
+
+
+@admin_bp.route("/telegram_media/<file_id>")
+@login_required
+def serve_telegram_media(file_id: str):
+    """Serve media file from Telegram by file_id."""
+    import logging
+    import requests
+    from io import BytesIO
+    from flask import send_file, abort
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Attempting to serve Telegram media: {file_id}")
+    
+    try:
+        bot_token = current_app.config.get("BOT_TOKEN")
+        if not bot_token:
+            logger.error("BOT_TOKEN not configured")
+            abort(500)
+        
+        # Get file info from Telegram
+        get_file_url = f"https://api.telegram.org/bot{bot_token}/getFile"
+        response = requests.get(get_file_url, params={"file_id": file_id}, timeout=10)
+        
+        if not response.ok:
+            logger.error(f"Failed to get file info: {response.text}")
+            abort(404)
+        
+        file_info = response.json()
+        if not file_info.get("ok"):
+            logger.error(f"Telegram API error: {file_info}")
+            abort(404)
+        
+        file_path = file_info["result"]["file_path"]
+        
+        # Download file from Telegram
+        download_url = f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
+        file_response = requests.get(download_url, timeout=30)
+        
+        if not file_response.ok:
+            logger.error(f"Failed to download file: {file_response.status_code}")
+            abort(404)
+        
+        # Determine mimetype from file extension
+        import mimetypes
+        mimetype, _ = mimetypes.guess_type(file_path)
+        if not mimetype:
+            mimetype = "application/octet-stream"
+        
+        # Send file
+        return send_file(
+            BytesIO(file_response.content),
+            mimetype=mimetype,
+            as_attachment=False,
+            download_name=file_path.split("/")[-1]
+        )
+        
+    except requests.Timeout:
+        logger.error("Timeout while fetching media from Telegram")
+        abort(504)
+    except Exception as e:
+        logger.exception(f"Error serving Telegram media: {e}")
+        abort(500)
 
 
 @admin_bp.route("/backups")

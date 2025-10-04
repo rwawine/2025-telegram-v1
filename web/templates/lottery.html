@@ -71,10 +71,16 @@
                 <i class="fas fa-download"></i>
                 Экспорт победителей
             </a>
-            <button class="btn btn-outline btn-lg" onclick="notifyWinners()">
-                <i class="fas fa-bell"></i>
-                Уведомить победителей
-            </button>
+            <form method="POST" action="{{ url_for('admin.notify_winners') }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                {% if selected_run %}
+                <input type="hidden" name="run_id" value="{{ selected_run }}"/>
+                {% endif %}
+                <button type="submit" class="btn btn-success btn-lg" onclick="return confirm('Уведомить всех победителей текущего розыгрыша?')">
+                    <i class="fas fa-bell"></i>
+                    Уведомить победителей
+                </button>
+            </form>
         </div>
     </div>
 </div>

@@ -72,7 +72,7 @@ def get_status_keyboard() -> ReplyKeyboardMarkup:
     """Keyboard for status checking"""
     keyboard = [
         [KeyboardButton(text="🔄 Обновить статус")],
-        [KeyboardButton(text="💬 Написать в поддержку")],
+        [KeyboardButton(text="💬 Поддержка")],
         [KeyboardButton(text="🏠 Главное меню")]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)

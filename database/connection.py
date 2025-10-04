@@ -38,6 +38,7 @@ class OptimizedSQLitePool:
 
         for _ in range(self.pool_size):
             conn = await aiosqlite.connect(self.database_path.as_posix())
+            conn.row_factory = aiosqlite.Row  # Enable dict-like row access
             await self._apply_pragma(conn)
             self._connections.append(_PooledConnection(conn=conn))
 

@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}Расширенная аналитика{% endblock %}
+
+<!-- VSCode: Disable CSS/JS linting for Jinja2 templates -->
+<!-- htmlhint-disable -->
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-chart-line me-2"></i>Расширенная аналитика</h1>
+        <div>
+            <button class="btn btn-outline-primary me-2" onclick="refreshData()">
+                <i class="fas fa-sync-alt me-2"></i>Обновить
+            </button>
+            <button class="btn btn-success" onclick="exportReport()">
+                <i class="fas fa-file-export me-2"></i>Экспорт отчета
+            </button>
+        </div>
+    </div>
+
+    <!-- Real-time Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Сегодня</h6>
+                    <h3 class="stat-value" id="today-total">{{ real_time.today.total }}</h3>
+                    <small class="text-success">
+                        <i class="fas fa-arrow-up"></i> +{{ real_time.today.approved }} одобрено
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Последний час</h6>
+                    <h3 class="stat-value" id="last-hour">{{ real_time.last_hour }}</h3>
+                    <small class="text-info">
+                        <i class="fas fa-clock"></i> В реальном времени
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Conversion Rate</h6>
+                    <h3 class="stat-value">{{ conversion.conversion_rate }}%</h3>
+                    <small class="text-primary">
+                        {{ conversion.approved }} / {{ conversion.total_registrations }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Retention Rate</h6>
+                    <h3 class="stat-value">{{ retention.retention_rate }}%</h3>
+                    <small class="{% if retention.churn_rate < 30 %}text-success{% else %}text-warning{% endif %}">
+                        Churn: {{ retention.churn_rate }}%
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Временной ряд регистраций (30 дней)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="registrationsChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Воронка конверсии</h5>
+                </div>
+                <div class="card-body">
+                    {% for stage in funnel.stages %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small><strong>{{ stage.stage }}</strong></small>
+                            <small>{{ stage.count }} ({{ stage.percentage }}%)</small>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar" style="--width: {{ stage.percentage }}%"></div>
+                        </div>
+                        {% if stage.drop_off > 0 %}
+                        <small class="text-danger">
+                            <i class="fas fa-arrow-down"></i> -{{ stage.drop_off }}% отсев
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Тепловая карта активности</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm text-center heatmap-table">
+                            <thead>
+                                <tr>
+                                    <th>День</th>
+                                    {% for hour in range(0, 24, 3) %}
+                                    <th>{{ '%02d'|format(hour) }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for day_name, hours in heatmap.items() %}
+                                <tr>
+                                    <td><strong>{{ day_name[:3] }}</strong></td>
+                                    {% for hour in range(0, 24, 3) %}
+                                    {% set count = hours[hour] %}
+                                    {% set intensity = (count / heatmap_max) if heatmap_max > 0 else 0 %}
+                                    <td class="heatmap-cell" style="--intensity: {{ '%.2f'|format(intensity) }};" title="{{ count }} регистраций">
+                                        {{ count if count > 0 else '' }}
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Cohort анализ</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="cohortChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metrics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Метрики конверсии</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <strong>Общая конверсия:</strong>
+                            <span class="float-end">{{ conversion.conversion_rate }}%</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Approval Rate:</strong>
+                            <span class="float-end text-success">{{ conversion.approval_rate }}%</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Rejection Rate:</strong>
+                            <span class="float-end text-danger">{{ conversion.rejection_rate }}%</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Всего регистраций:</strong>
+                            <span class="float-end">{{ conversion.total_registrations }}</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Одобрено:</strong>
+                            <span class="float-end text-success">{{ conversion.approved }}</span>
+                        </li>
+                        <li>
+                            <strong>На модерации:</strong>
+                            <span class="float-end text-warning">{{ conversion.pending }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Метрики удержания</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <strong>Всего пользователей:</strong>
+                            <span class="float-end">{{ retention.total_users }}</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Новые пользователи:</strong>
+                            <span class="float-end text-info">{{ retention.new_users }}</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Вернувшиеся:</strong>
+                            <span class="float-end text-success">{{ retention.returning_users }}</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Retention Rate:</strong>
+                            <span class="float-end">{{ retention.retention_rate }}%</span>
+                        </li>
+                        <li>
+                            <strong>Churn Rate:</strong>
+                            <span class="float-end text-{% if retention.churn_rate < 30 %}success{% else %}warning{% endif %}">{{ retention.churn_rate }}%</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Ключевые инсайты</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-3">
+                            <i class="fas fa-chart-line text-success me-2"></i>
+                            <strong>Лучший день:</strong> {{ best_day or 'Н/Д' }}
+                        </li>
+                        <li class="mb-3">
+                            <i class="fas fa-clock text-primary me-2"></i>
+                            <strong>Пик активности:</strong> {{ peak_hour or 'Н/Д' }}
+                        </li>
+                        <li class="mb-3">
+                            <i class="fas fa-users text-info me-2"></i>
+                            <strong>Средний возврат:</strong> {{ avg_retention or 'Н/Д' }}
+                        </li>
+                        <li>
+                            <i class="fas fa-trophy text-warning me-2"></i>
+                            <strong>Общая оценка:</strong>
+                            {% if conversion.conversion_rate >= 70 %}Отлично{% elif conversion.conversion_rate >= 50 %}Хорошо{% else %}Требует внимания{% endif %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.heatmap-cell {
+    padding: 10px 5px;
+    border: 1px solid #dee2e6;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: rgba(59, 130, 246, var(--intensity, 0));
+}
+.heatmap-cell:hover {
+    border-color: #0d6efd;
+    transform: scale(1.05);
+}
+.progress-bar {
+    width: var(--width, 0);
+}
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 0;
+}
+</style>
+
+<script type="application/json" id="chartData">
+{
+  "timeSeries": {{ (time_series|default([]))|tojson|safe }},
+  "cohorts": {{ (cohorts|default([]))|tojson|safe }}
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Загружаем данные из JSON script
+const chartData = JSON.parse(document.getElementById('chartData').textContent);
+const timeSeriesData = chartData.timeSeries;
+const cohortData = chartData.cohorts;
+
+// График временного ряда
+const ctxRegistrations = document.getElementById('registrationsChart').getContext('2d');
+new Chart(ctxRegistrations, {
+    type: 'line',
+    data: {
+        labels: timeSeriesData.map(d => d.label),
+        datasets: [{
+            label: 'Регистрации',
+            data: timeSeriesData.map(d => d.value),
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// График cohort
+const ctxCohort = document.getElementById('cohortChart').getContext('2d');
+new Chart(ctxCohort, {
+    type: 'bar',
+    data: {
+        labels: cohortData.map(d => d.cohort),
+        datasets: [{
+            label: 'Approval Rate (%)',
+            data: cohortData.map(d => d.approval_rate),
+            backgroundColor: 'rgba(16, 185, 129, 0.6)',
+            borderColor: 'rgb(16, 185, 129)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100
+            }
+        }
+    }
+});
+
+function refreshData() {
+    location.reload();
+}
+
+function exportReport() {
+    window.location.href = '{{ url_for("admin_new.export_analytics_report") }}';
+}
+</script>
+{% endblock %}
+

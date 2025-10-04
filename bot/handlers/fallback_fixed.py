@@ -66,6 +66,7 @@ class FixedSmartFallbackHandler:
         self.router.message.register(
             self.handle_unexpected_photo,
             F.photo,
+            ~StateFilter(RegistrationStates.upload_photo),  # НЕ обрабатывать в состоянии upload_photo
         )
         
         self.router.message.register(
@@ -115,7 +116,18 @@ class FixedSmartFallbackHandler:
             if is_confused:
                 await self._handle_confused_user(message, state)
             else:
-                await self._provide_contextual_help(message, state)
+                # Простое нейтральное сообщение для неизвестного текста
+                await message.answer(
+                    "🤔 **Не совсем понял ваш запрос.**\n\n"
+                    "💡 **Попробуйте:**\n"
+                    "📋 Проверить свой статус\n"
+                    "📊 Узнать о розыгрыше\n"
+                    "💬 Связаться с поддержкой\n\n"
+                    "👇 Используйте кнопки меню ниже:",
+                    parse_mode="Markdown"
+                )
+                keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+                await message.answer("Выберите действие:", reply_markup=keyboard)
     
     async def _provide_fsm_help(self, message: types.Message, state: FSMContext, current_state: str):
         """Контекстная помощь для пользователей в FSM состояниях"""
@@ -241,7 +253,15 @@ class FixedSmartFallbackHandler:
         if current_state:
             await self._provide_fsm_help(message, state, current_state)
         else:
-            await self._provide_contextual_help(message, state, is_media_error=True)
+            # Простое сообщение без проверки статуса
+            await message.answer(
+                "😊 **Спасибо за стикер!**\n\n"
+                "🤔 Но сейчас стикеры не требуются.\n\n"
+                "👇 Используйте кнопки меню ниже:",
+                parse_mode="Markdown"
+            )
+            keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+            await message.answer("Выберите действие:", reply_markup=keyboard)
     
     async def handle_unexpected_voice(self, message: types.Message, state: FSMContext):
         """Обработка голосовых сообщений с учетом FSM состояния"""
@@ -260,7 +280,15 @@ class FixedSmartFallbackHandler:
         if current_state:
             await self._provide_fsm_help(message, state, current_state)
         else:
-            await self._provide_contextual_help(message, state, is_media_error=True)
+            # Простое сообщение без проверки статуса
+            await message.answer(
+                "🎤 **Спасибо за голосовое сообщение!**\n\n"
+                "🤔 Но сейчас голосовые сообщения не обрабатываются.\n\n"
+                "👇 Используйте кнопки меню ниже:",
+                parse_mode="Markdown"
+            )
+            keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+            await message.answer("Выберите действие:", reply_markup=keyboard)
     
     async def handle_unexpected_media(self, message: types.Message, state: FSMContext):
         """Обработка неожиданного медиа контента с учетом FSM состояния"""
@@ -294,17 +322,21 @@ class FixedSmartFallbackHandler:
         if current_state:
             await self._provide_fsm_help(message, state, current_state)
         else:
-            await self._provide_contextual_help(message, state, is_media_error=True)
+            # Простое сообщение без проверки статуса
+            await message.answer(
+                f"📎 **{content_type} получен!**\n\n"
+                f"🤔 Но сейчас такие файлы не требуются.\n\n"
+                "👇 Используйте кнопки меню ниже:",
+                parse_mode="Markdown"
+            )
+            keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+            await message.answer("Выберите действие:", reply_markup=keyboard)
     
     async def handle_unexpected_photo(self, message: types.Message, state: FSMContext):
         """Обработка фото в неожиданных местах"""
         current_state = await state.get_state()
         
-        # Если мы в состоянии загрузки фото, пропускаем - пусть обработает registration handler
-        if current_state and "upload_photo" in current_state:
-            return
-        
-        # Если мы НЕ в состоянии загрузки фото, то это неожиданно
+        # Если пользователь в каком-то FSM состоянии (но не upload_photo)
         if current_state:
             context_manager = get_context_manager()
             if context_manager:
@@ -317,18 +349,25 @@ class FixedSmartFallbackHandler:
             
             await self._provide_fsm_help(message, state, current_state)
         else:
-            await self._provide_contextual_help(message, state, is_media_error=True)
+            # Для фото вне FSM состояния - простое сообщение без проверки статуса
+            await message.answer(
+                "📸 **Спасибо за фото!**\n\n"
+                "🤔 Но сейчас фотографии не требуются.\n\n"
+                "💡 **Что вы можете сделать:**\n"
+                "📋 Проверить свой статус участия\n"
+                "📊 Узнать о розыгрыше\n"
+                "💬 Связаться с поддержкой\n\n"
+                "👇 Используйте кнопки меню ниже:",
+                parse_mode="Markdown"
+            )
+            keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+            await message.answer("Выберите действие:", reply_markup=keyboard)
     
     async def handle_unexpected_contact(self, message: types.Message, state: FSMContext):
         """Обработка контакта в неожиданных местах"""
         current_state = await state.get_state()
         
-        print(f"📞 DEBUG FALLBACK: Contact received, state: {current_state}")
-        
-        # Если мы в состоянии ввода телефона, пропускаем - пусть обработает registration handler
-        if current_state and "enter_phone" in current_state:
-            print(f"📞 DEBUG FALLBACK: Skipping contact in enter_phone state")
-            return
+        # Если пользователь в каком-то FSM состоянии (но не enter_phone - фильтр исключает)
         
         if current_state:
             context_manager = get_context_manager()
@@ -342,22 +381,36 @@ class FixedSmartFallbackHandler:
             
             await self._provide_fsm_help(message, state, current_state)
         else:
-            await self._provide_contextual_help(message, state, is_media_error=True)
+            # Простое сообщение без проверки статуса
+            await message.answer(
+                "📱 **Спасибо за контакт!**\n\n"
+                "🤔 Но сейчас контакты не требуются.\n\n"
+                "👇 Используйте кнопки меню ниже:",
+                parse_mode="Markdown"
+            )
+            keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+            await message.answer("Выберите действие:", reply_markup=keyboard)
     
     async def handle_unexpected_location(self, message: types.Message, state: FSMContext):
         """Обработка геолокации"""
         current_state = await state.get_state()
         
-        await message.answer(
-            "🗺️ Интересное место! Но для нашего розыгрыша геолокация не нужна.\n\n"
-            "🎯 Давайте вернемся к главному:"
-        )
-        
         if current_state:
+            await message.answer(
+                "🗺️ Интересное место! Но для нашего розыгрыша геолокация не нужна.\n\n"
+                "🎯 Давайте вернемся к главному:"
+            )
             await self._provide_fsm_help(message, state, current_state)
         else:
+            # Простое сообщение без проверки статуса
+            await message.answer(
+                "🗺️ **Спасибо за геолокацию!**\n\n"
+                "🤔 Но сейчас геолокация не требуется.\n\n"
+                "👇 Используйте кнопки меню ниже:",
+                parse_mode="Markdown"
+            )
             keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
-            await message.answer("Выберите нужный раздел:", reply_markup=keyboard)
+            await message.answer("Выберите действие:", reply_markup=keyboard)
     
     async def _handle_confused_user(self, message: types.Message, state: FSMContext):
         """Помощь запутавшемуся пользователю"""
@@ -389,54 +442,6 @@ class FixedSmartFallbackHandler:
             reply_markup=quick_nav
         )
     
-    async def _provide_contextual_help(self, message: types.Message, state: FSMContext, is_media_error: bool = False):
-        """Контекстная помощь для пользователей без FSM состояния"""
-        
-        # Сначала проверяем статус пользователя
-        from database.repositories import get_participant_status
-        user_status = await get_participant_status(message.from_user.id)
-        
-        # Даем специфичные подсказки в зависимости от статуса
-        if user_status is None:
-            await message.answer(
-                "🚀 **Похоже, вы еще не зарегистрированы!**\n\n"
-                "🎯 Для участия в розыгрыше нужно:\n"
-                "1️⃣ Нажать **«🚀 Начать регистрацию»**\n"
-                "2️⃣ Заполнить данные (имя, телефон, карта)\n"
-                "3️⃣ Загрузить фото лифлета\n\n"
-                "⚡ Это займет всего 2-3 минуты!",
-                parse_mode="Markdown"
-            )
-        elif user_status == "rejected":
-            await message.answer(
-                "❌ **Ваша заявка была отклонена**\n\n"
-                "💬 **Рекомендуем:**\n"
-                "🔄 Подать заявку повторно с исправлениями\n"
-                "💭 Написать в поддержку для уточнений\n\n"
-                "📞 **Техподдержка поможет** выяснить причину!",
-                parse_mode="Markdown"
-            )
-        elif user_status == "pending":
-            await message.answer(
-                "⏳ **Ваша заявка на модерации**\n\n"
-                "✅ Заявка получена и рассматривается\n"
-                "🔔 Мы уведомим о результате\n"
-                "📋 Можете проверить статус через **«📋 Мой статус»**",
-                parse_mode="Markdown"
-            )
-        elif user_status == "approved":
-            await message.answer(
-                "🎉 **Поздравляем! Вы участвуете в розыгрыше!**\n\n"
-                "✅ Ваша заявка одобрена\n"
-                "🎁 Ожидайте результатов розыгрыша\n"
-                "📋 Следите за обновлениями в **«📊 О розыгрыше»**",
-                parse_mode="Markdown"
-            )
-        
-        # Показываем главное меню
-        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
-        await message.answer("Выберите действие:", reply_markup=keyboard)
-
     def _register_quick_nav_handlers(self) -> None:
         """Регистрация обработчиков для быстрых inline-действий навигации."""
 

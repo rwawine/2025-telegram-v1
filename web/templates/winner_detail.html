@@ -57,6 +57,12 @@
                 <a href="{{ url_for('admin.participant_detail', participant_id=winner.participant_id) }}" class="btn btn-outline-secondary">
                     <i class="fa-solid fa-user me-2"></i>Карточка участника
                 </a>
+                <form method="POST" action="{{ url_for('admin.notify_single_winner', winner_id=winner.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-success w-100" onclick="return confirm('Отправить уведомление победителю?')">
+                        <i class="fa-solid fa-bell me-2"></i>Уведомить победителя
+                    </button>
+                </form>
                 <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#rerollModal-{{ winner.id }}">
                     <i class="fa-solid fa-redo me-2"></i>Перерозыгрыш
                 </button>

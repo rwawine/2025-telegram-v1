@@ -49,6 +49,7 @@ class SupportHandler:
         self.router.callback_query.register(self.view_ticket_detail, F.data.startswith("view_ticket_"))
         self.router.callback_query.register(self.back_to_tickets_list, F.data == "back_to_tickets_list")
         self.router.callback_query.register(self.reply_to_ticket, F.data.startswith("reply_ticket_"))
+        self.router.callback_query.register(self.handle_add_to_ticket, F.data.startswith("add_to_ticket_"))
 
         # Compose ticket
         # Draft message and actions within composing state
@@ -63,6 +64,11 @@ class SupportHandler:
         # General navigation removed - теперь в global_commands.py
         # Any other text becomes the draft body (САМЫЙ НИЗКИЙ ПРИОРИТЕТ)
         self.router.message.register(self.receive_ticket_message, SupportStates.entering_message)
+        
+        # Adding to existing ticket
+        self.router.message.register(self.handle_send_addition, SupportStates.adding_to_ticket, F.text == "✅ Отправить")
+        self.router.message.register(self.cancel_addition, SupportStates.adding_to_ticket, F.text == "❌ Отмена")
+        self.router.message.register(self.receive_addition_message, SupportStates.adding_to_ticket)
 
     async def open_support_menu(self, message: types.Message) -> None:
         from bot.context_manager import get_context_manager, UserContext, UserAction
@@ -271,11 +277,25 @@ class SupportHandler:
             row = await cursor.fetchone()
             ticket_id = row[0]
 
+            # Сохраняем основное сообщение пользователя в переписку
+            if body and body.strip():
+                try:
+                    await conn.execute(
+                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, sent_at) VALUES (?, 'user', ?, datetime('now', '+3 hours'))",
+                        (ticket_id, body.strip()),
+                    )
+                except Exception as e:
+                    # Fallback if table doesn't have sent_at column
+                    await conn.execute(
+                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text) VALUES (?, 'user', ?)",
+                        (ticket_id, body.strip()),
+                    )
+
             # Persist attachments as messages records
             for file_id in photos:
                 try:
                     await conn.execute(
-                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id, sent_at) VALUES (?, 'user', '', ?, datetime('now'))",
+                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id, sent_at) VALUES (?, 'user', '', ?, datetime('now', '+3 hours'))",
                         (ticket_id, file_id),
                     )
                 except Exception as e:
@@ -287,7 +307,7 @@ class SupportHandler:
             for file_id in docs:
                 try:
                     await conn.execute(
-                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id, sent_at) VALUES (?, 'user', '', ?, datetime('now'))",
+                        "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id, sent_at) VALUES (?, 'user', '', ?, datetime('now', '+3 hours'))",
                         (ticket_id, file_id),
                     )
                 except Exception as e:
@@ -403,10 +423,16 @@ class SupportHandler:
                         lines.append(f"  📎 Приложено медиа")
                 lines.append("")
 
-        # Создаем кнопку для возврата к списку
-        back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Вернуться к списку обращений", callback_data="back_to_tickets_list")]
+        # Создаем кнопки: дополнить обращение (если не закрыто) и вернуться к списку
+        keyboard_buttons = []
+        if status not in ["closed", "resolved"]:
+            keyboard_buttons.append([
+                InlineKeyboardButton(text="📝 Дополнить обращение", callback_data=f"add_to_ticket_{ticket_id}")
+            ])
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="⬅️ Вернуться к списку обращений", callback_data="back_to_tickets_list")
         ])
+        back_keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
         full_text = "\n".join(lines)
         
@@ -435,27 +461,60 @@ class SupportHandler:
 
     async def back_to_tickets_list(self, callback: types.CallbackQuery) -> None:
         """Возврат к списку обращений"""
-        try:
-            # Создаем фиктивное сообщение с правильным bot instance
-            fake_message = types.Message(
-                message_id=callback.message.message_id,
-                date=callback.message.date,
-                chat=callback.message.chat,
-                from_user=callback.from_user,
-                content_type="text"
+        await callback.answer()
+        
+        pool = get_db_pool()
+        async with pool.connection() as conn:
+            cursor = await conn.execute(
+                """
+                SELECT t.id, t.subject, t.status, t.created_at
+                FROM support_tickets t
+                JOIN participants p ON p.id = t.participant_id
+                WHERE p.telegram_id=?
+                ORDER BY t.created_at DESC
+                LIMIT 10
+                """,
+                (callback.from_user.id,),
             )
-            fake_message.bot = callback.bot
+            rows = await cursor.fetchall()
+
+        if not rows:
+            await callback.message.edit_text(
+                "📭 У вас пока нет обращений в техподдержку.\n\n"
+                "Вы можете создать обращение, нажав '📝 Написать сообщение'.",
+                reply_markup=get_support_menu_keyboard(),
+            )
+            return
+
+        status_emoji = {
+            "open": "🟡",
+            "in_progress": "🔵",
+            "closed": "🟢",
+        }
+        status_text = {
+            "open": "Открыто",
+            "in_progress": "В работе",
+            "closed": "Закрыто",
+        }
+
+        lines: list[str] = ["📞 Ваши обращения:\n"]
+        inline_keyboard = []
+        
+        for ticket_id, subject, status, created_at in rows:
+            emoji = status_emoji.get(status, "⚪️")
+            text = status_text.get(status, status)
+            lines.append(f"{emoji} {subject}\n📅 {created_at} — {text}\n")
             
-            await self.list_my_tickets(fake_message)
-        except Exception as e:
-            # Fallback if something goes wrong
-            await callback.answer("📋 Загружаем список обращений...", show_alert=True)
-            await callback.bot.send_message(
-                chat_id=callback.from_user.id,
-                text="📋 Ваши обращения в техподдержку загружаются..."
-            )
-        finally:
-            await callback.answer()
+            # Добавляем inline-кнопку для просмотра детального содержимого
+            inline_keyboard.append([
+                InlineKeyboardButton(
+                    text=f"📄 Просмотреть: {subject[:20]}...",
+                    callback_data=f"view_ticket_{ticket_id}"
+                )
+            ])
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+        await callback.message.edit_text("\n".join(lines), reply_markup=keyboard)
 
     async def handle_view_ticket(self, callback: types.CallbackQuery) -> None:
         """Просмотр конкретного тикета техподдержки"""
@@ -631,6 +690,131 @@ class SupportHandler:
             "📎 Можете приложить фото или документ",
             reply_markup=get_ticket_actions_keyboard(),
             parse_mode="Markdown"
+        )
+
+    async def handle_add_to_ticket(self, callback: types.CallbackQuery, state: FSMContext) -> None:
+        """Начать дополнение существующего обращения"""
+        ticket_id = int(callback.data.split("_")[-1])
+        
+        await callback.answer()
+        
+        # Переводим в режим добавления к тикету
+        await state.set_state(SupportStates.adding_to_ticket)
+        await state.update_data(
+            ticket_id=ticket_id,
+            addition_text="",
+            addition_photos=[],
+            addition_docs=[]
+        )
+        
+        from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+        keyboard = ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="✅ Отправить")],
+                [KeyboardButton(text="❌ Отмена")]
+            ],
+            resize_keyboard=True
+        )
+        
+        await callback.message.answer(
+            "📝 **Дополнение обращения**\n\n"
+            f"📋 Тикет #{ticket_id}\n\n"
+            "✍️ Напишите дополнительную информацию:\n"
+            "• Новые детали проблемы\n"
+            "• Уточнения\n"
+            "• Комментарии\n\n"
+            "📎 Можете прикрепить фото или документ\n\n"
+            "После ввода нажмите '✅ Отправить'",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+
+    async def receive_addition_message(self, message: types.Message, state: FSMContext) -> None:
+        """Принять текст/фото/документ для дополнения"""
+        data = await state.get_data()
+        
+        if message.photo:
+            # Добавляем фото
+            file_id = message.photo[-1].file_id
+            photos = list(data.get("addition_photos", []))
+            photos.append(file_id)
+            await state.update_data(addition_photos=photos)
+            await message.answer("📎 Фото добавлено к дополнению.")
+            return
+            
+        if message.document:
+            # Добавляем документ
+            file_id = message.document.file_id
+            docs = list(data.get("addition_docs", []))
+            docs.append(file_id)
+            await state.update_data(addition_docs=docs)
+            await message.answer("📎 Документ добавлен к дополнению.")
+            return
+        
+        # Добавляем текст
+        text = (message.text or "").strip()
+        if text and text not in ["✅ Отправить", "❌ Отмена"]:
+            current_text = data.get("addition_text", "")
+            new_text = (current_text + "\n" + text).strip() if current_text else text
+            await state.update_data(addition_text=new_text)
+            await message.answer("✅ Текст сохранен. Можете добавить еще информации или нажмите '✅ Отправить'")
+
+    async def handle_send_addition(self, message: types.Message, state: FSMContext) -> None:
+        """Отправить дополнение к обращению"""
+        data = await state.get_data()
+        ticket_id = data.get("ticket_id")
+        addition_text = data.get("addition_text", "").strip()
+        photos = data.get("addition_photos", [])
+        docs = data.get("addition_docs", [])
+        
+        if not addition_text and not photos and not docs:
+            await message.answer("❌ Вы не добавили никакой информации. Напишите текст или прикрепите файл.")
+            return
+        
+        pool = get_db_pool()
+        async with pool.connection() as conn:
+            # Сохраняем текст если есть
+            if addition_text:
+                await conn.execute(
+                    "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, sent_at) VALUES (?, 'user', ?, datetime('now', '+3 hours'))",
+                    (ticket_id, addition_text),
+                )
+            
+            # Сохраняем фото
+            for file_id in photos:
+                await conn.execute(
+                    "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id, sent_at) VALUES (?, 'user', '', ?, datetime('now', '+3 hours'))",
+                    (ticket_id, file_id),
+                )
+            
+            # Сохраняем документы
+            for file_id in docs:
+                await conn.execute(
+                    "INSERT INTO support_ticket_messages (ticket_id, sender_type, message_text, attachment_file_id, sent_at) VALUES (?, 'user', '', ?, datetime('now', '+3 hours'))",
+                    (ticket_id, file_id),
+                )
+            
+            await conn.commit()
+        
+        await state.clear()
+        
+        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+        await message.answer(
+            "✅ **Дополнение отправлено!**\n\n"
+            f"📋 Ваше дополнение к обращению #{ticket_id} успешно добавлено.\n"
+            "Администратор увидит обновленную информацию.",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+
+    async def cancel_addition(self, message: types.Message, state: FSMContext) -> None:
+        """Отменить дополнение обращения"""
+        await state.clear()
+        
+        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+        await message.answer(
+            "❌ Дополнение обращения отменено.",
+            reply_markup=keyboard
         )
 
 

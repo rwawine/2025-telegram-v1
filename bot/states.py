@@ -12,4 +12,5 @@ class RegistrationStates(StatesGroup):
 
 class SupportStates(StatesGroup):
     entering_message = State()
+    adding_to_ticket = State()
 

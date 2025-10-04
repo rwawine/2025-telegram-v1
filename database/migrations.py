@@ -137,6 +137,124 @@ SCHEMA_SQL: tuple[str, ...] = (
     );
     """,
     "CREATE INDEX IF NOT EXISTS idx_media_files_type ON media_files(file_type);",
+    """
+    CREATE TABLE IF NOT EXISTS fraud_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        activity_type TEXT NOT NULL,
+        details TEXT,
+        detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_fraud_log_user ON fraud_log(user_id, detected_at);",
+    "CREATE INDEX IF NOT EXISTS idx_fraud_log_type ON fraud_log(activity_type, detected_at);",
+    
+    # Система тегов для участников
+    """
+    CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        color TEXT NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS participant_tags (
+        participant_id INTEGER NOT NULL,
+        tag_id INTEGER NOT NULL,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        added_by TEXT,
+        PRIMARY KEY (participant_id, tag_id),
+        FOREIGN KEY (participant_id) REFERENCES participants(id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_participant_tags_participant ON participant_tags(participant_id);",
+    "CREATE INDEX IF NOT EXISTS idx_participant_tags_tag ON participant_tags(tag_id);",
+    
+    # Черный список для блокировки пользователей
+    """
+    CREATE TABLE IF NOT EXISTS blacklist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        telegram_id BIGINT UNIQUE,
+        phone_number TEXT,
+        reason TEXT,
+        added_by TEXT,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_blacklist_telegram ON blacklist(telegram_id);",
+    "CREATE INDEX IF NOT EXISTS idx_blacklist_phone ON blacklist(phone_number);",
+    
+    # Журнал действий админов (audit log)
+    """
+    CREATE TABLE IF NOT EXISTS audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        admin_username TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        old_value TEXT,
+        new_value TEXT,
+        reason TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_audit_log_admin ON audit_log(admin_username, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action_type, created_at);",
+    
+    # Таблицы для системы умных уведомлений
+    """
+    CREATE TABLE IF NOT EXISTS notification_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        variant TEXT,
+        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        opened_at TIMESTAMP,
+        clicked_at TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_notification_log_user ON notification_log(user_id, sent_at);",
+    "CREATE INDEX IF NOT EXISTS idx_notification_log_type ON notification_log(type, sent_at);",
+    
+    """
+    CREATE TABLE IF NOT EXISTS notification_preferences (
+        user_id INTEGER PRIMARY KEY,
+        preferences TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    
+    """
+    CREATE TABLE IF NOT EXISTS scheduled_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        params TEXT,
+        scheduled_for TIMESTAMP NOT NULL,
+        sent BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_scheduled_notif ON scheduled_notifications(scheduled_for, sent);",
+    
+    # Таблица для аналитики событий (для AdvancedAnalyticsService)
+    """
+    CREATE TABLE IF NOT EXISTS analytics_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        event_data TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_analytics_events_user ON analytics_events(user_id, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON analytics_events(event_type, created_at);",
 )
 
 

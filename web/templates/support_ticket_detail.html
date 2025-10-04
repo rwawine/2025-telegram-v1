@@ -59,11 +59,57 @@
                         <div class="d-flex {% if message.sender_type == 'admin' %}flex-row-reverse{% endif %} align-items-end">
                             <div class="card" style="max-width: 80%;">
                                 <div class="card-body">
+                                    {% if message.message_text %}
                                     <p class="mb-0">{{ message.message_text | replace('\n', '<br>') | safe }}</p>
-                                    {% if message.attachment_path %}
+                                    {% endif %}
+                                    {% if message.attachment_file_id %}
                                     <div class="mt-2">
-                                        <a href="{{ url_for('admin.serve_upload', filename=message.attachment_path.split('/')[-1] if message.attachment_path else '') }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                            <i class="fa-solid fa-paperclip me-1"></i> Вложение
+                                        <div class="d-flex flex-column gap-2">
+                                            <a href="#" data-bs-toggle="modal" data-bs-target="#mediaModal{{ loop.index }}">
+                                                <img src="{{ url_for('admin.serve_telegram_media', file_id=message.attachment_file_id) }}" 
+                                                     class="img-fluid rounded border media-preview" 
+                                                     style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+                                                     alt="Медиа">
+                                                <div class="alert alert-info mb-0 py-2 px-3" style="display: none; max-width: 300px;">
+                                                    <i class="fa-solid fa-file me-2"></i>
+                                                    <strong>Документ</strong>
+                                                </div>
+                                            </a>
+                                            <a href="{{ url_for('admin.serve_telegram_media', file_id=message.attachment_file_id) }}" 
+                                               target="_blank" 
+                                               class="btn btn-sm btn-outline-primary" 
+                                               style="max-width: 150px;">
+                                                <i class="fa-solid fa-download me-1"></i>Скачать
+                                            </a>
+                                        </div>
+                                        <!-- Modal for fullsize image -->
+                                        <div class="modal fade" id="mediaModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog modal-xl modal-dialog-centered">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">Медиа файл</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body text-center">
+                                                        <img src="{{ url_for('admin.serve_telegram_media', file_id=message.attachment_file_id) }}" class="img-fluid" alt="Медиа">
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <a href="{{ url_for('admin.serve_telegram_media', file_id=message.attachment_file_id) }}" target="_blank" class="btn btn-primary" download>
+                                                            <i class="fa-solid fa-download me-1"></i>Скачать
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% elif message.attachment_path %}
+                                    <div class="mt-2">
+                                        <a href="{{ url_for('admin.serve_upload', filename=message.attachment_path.split('/')[-1] if message.attachment_path else '') }}" target="_blank">
+                                            <img src="{{ url_for('admin.serve_upload', filename=message.attachment_path.split('/')[-1] if message.attachment_path else '') }}" 
+                                                 class="img-fluid rounded border" 
+                                                 style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                                 alt="Вложение">
                                         </a>
                                     </div>
                                     {% endif %}

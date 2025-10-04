@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block title %}Журнал аудита{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-clipboard-list me-2"></i>Журнал аудита</h1>
+        <div>
+            <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#filtersModal">
+                <i class="fas fa-filter me-2"></i>Фильтры
+            </button>
+            <button class="btn btn-success" onclick="exportAuditLog()">
+                <i class="fas fa-download me-2"></i>Экспорт
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters Applied -->
+    {% if current_filters %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+        <div>
+            <strong>Активные фильтры:</strong>
+            {% if current_filters.admin %}<span class="badge bg-primary me-2">Админ: {{ current_filters.admin }}</span>{% endif %}
+            {% if current_filters.action %}<span class="badge bg-primary me-2">Действие: {{ current_filters.action }}</span>{% endif %}
+            {% if current_filters.entity %}<span class="badge bg-primary me-2">Сущность: {{ current_filters.entity }}</span>{% endif %}
+        </div>
+        <a href="{{ url_for('admin_new.audit_log') }}" class="btn btn-sm btn-outline-secondary">Сбросить</a>
+    </div>
+    {% endif %}
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Всего записей</h6>
+                    <h3>{{ total_logs }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">За последний час</h6>
+                    <h3>{{ last_hour_logs }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Активных админов</h6>
+                    <h3>{{ active_admins }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-2">Подозрительная активность</h6>
+                    <h3 class="text-warning">{{ suspicious_count }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Log Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">История действий</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Время</th>
+                            <th>Администратор</th>
+                            <th>Действие</th>
+                            <th>Сущность</th>
+                            <th>ID</th>
+                            <th>Изменения</th>
+                            <th>IP</th>
+                            <th>Детали</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr class="{% if log.is_suspicious %}table-warning{% endif %}">
+                            <td>
+                                <small>{{ log.created_at }}</small>
+                            </td>
+                            <td>
+                                <strong>{{ log.admin_username }}</strong>
+                                {% if log.is_suspicious %}<i class="fas fa-exclamation-triangle text-warning ms-1" title="Подозрительная активность"></i>{% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 
+                                    'success' if 'APPROVE' in log.action_type else 
+                                    'danger' if 'DELETE' in log.action_type or 'REJECT' in log.action_type else 
+                                    'warning' if 'UPDATE' in log.action_type else 
+                                    'info' 
+                                }}">
+                                    {{ log.action_type }}
+                                </span>
+                            </td>
+                            <td>{{ log.entity_type }}</td>
+                            <td>{{ log.entity_id or '—' }}</td>
+                            <td>
+                                {% if log.old_value and log.new_value %}
+                                <button class="btn btn-sm btn-outline-primary show-changes-btn" 
+                                        data-id="{{ log.id }}" 
+                                        data-old="{{ log.old_value|tojson }}" 
+                                        data-new="{{ log.new_value|tojson }}">
+                                    <i class="fas fa-eye"></i> Показать
+                                </button>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </td>
+                            <td><small>{{ log.ip_address or '—' }}</small></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-info show-details-btn" 
+                                        data-log="{{ log|tojson }}">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">Записи отсутствуют</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% for page_num in range(1, total_pages + 1) %}
+                    <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                        <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Filters Modal -->
+<div class="modal fade" id="filtersModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="GET" action="{{ url_for('admin_new.audit_log') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Фильтры</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Администратор</label>
+                        <input type="text" name="admin" class="form-control" value="{{ current_filters.admin or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Тип действия</label>
+                        <select name="action" class="form-select">
+                            <option value="">Все</option>
+                            <option value="APPROVE">Одобрение</option>
+                            <option value="REJECT">Отклонение</option>
+                            <option value="DELETE">Удаление</option>
+                            <option value="UPDATE">Обновление</option>
+                            <option value="CREATE">Создание</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Сущность</label>
+                        <select name="entity" class="form-select">
+                            <option value="">Все</option>
+                            <option value="participant">Участник</option>
+                            <option value="tag">Тег</option>
+                            <option value="support_ticket">Тикет</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Период</label>
+                        <div class="row">
+                            <div class="col">
+                                <input type="date" name="start_date" class="form-control" value="{{ current_filters.start_date or '' }}">
+                            </div>
+                            <div class="col">
+                                <input type="date" name="end_date" class="form-control" value="{{ current_filters.end_date or '' }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Применить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Детали записи</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="detailsContent"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.show-details-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const log = JSON.parse(this.dataset.log);
+            document.getElementById('detailsContent').textContent = JSON.stringify(log, null, 2);
+            new bootstrap.Modal(document.getElementById('detailsModal')).show();
+        });
+    });
+    
+    document.querySelectorAll('.show-changes-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const oldValue = this.dataset.old;
+            const newValue = this.dataset.new;
+            const content = `Старое значение:\n${oldValue}\n\nНовое значение:\n${newValue}`;
+            document.getElementById('detailsContent').textContent = content;
+            new bootstrap.Modal(document.getElementById('detailsModal')).show();
+        });
+    });
+});
+
+function exportAuditLog() {
+    window.location.href = '{{ url_for("admin_new.export_audit_log") }}';
+}
+</script>
+{% endblock %}
+

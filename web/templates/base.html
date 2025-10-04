@@ -98,10 +98,28 @@
                     </div>
                     
                     <div class="nav-item">
-                        <a href="{{ url_for('admin.analytics') }}" 
-                           class="nav-link {% if request.endpoint == 'admin.analytics' %}active{% endif %}">
+                        <a href="#" class="nav-link expandable" id="analytics-menu">
                             <i class="fas fa-chart-bar"></i>
                             📈 Аналитика
+                            <i class="fas fa-chevron-down"></i>
+                        </a>
+                        <div class="nav-submenu" id="analytics-submenu">
+                            <a href="{{ url_for('admin.analytics') }}" 
+                               class="nav-link {% if request.endpoint == 'admin.analytics' %}active{% endif %}">
+                                📊 Базовая
+                            </a>
+                            <a href="{{ url_for('admin_new.analytics_advanced') }}" 
+                               class="nav-link {% if request.endpoint == 'admin_new.analytics_advanced' %}active{% endif %}">
+                                📈 Расширенная
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="nav-item">
+                        <a href="{{ url_for('admin_new.audit_log') }}" 
+                           class="nav-link {% if request.endpoint == 'admin_new.audit_log' %}active{% endif %}">
+                            <i class="fas fa-clipboard-list"></i>
+                            📋 Audit Log
                         </a>
                     </div>
                     
