@@ -328,7 +328,6 @@ class SupportHandler:
         await message.answer(sent_msg["text"], parse_mode="Markdown")
         
         # Возвращаем пользователя в главное меню после отправки
-        from bot.keyboards.main_menu import get_main_menu_keyboard_for_user
         main_keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
         await message.answer("🏠 Главное меню", reply_markup=main_keyboard)
         
@@ -643,7 +642,6 @@ class SupportHandler:
         
         # Определяем какую функцию вызвать в зависимости от кнопки
         if "Главное меню" in message.text:
-            from bot.keyboards.main_menu import get_main_menu_keyboard_for_user
             keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
             await message.answer("🏠 Главное меню", reply_markup=keyboard)
         elif "статус" in message.text.lower():

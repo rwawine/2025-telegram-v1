@@ -1,9 +1,8 @@
 """Common bot commands and informational handlers."""
 
 from aiogram import F, Router, types
-from aiogram.filters import Command
 
-from bot.keyboards import get_main_menu_keyboard_for_user, get_info_menu_keyboard, get_support_menu_keyboard
+from bot.keyboards import get_info_menu_keyboard, get_support_menu_keyboard
 from bot.context_manager import get_context_manager, UserContext, UserAction
 from bot.messages import smart_messages
 from database.repositories import get_participant_status

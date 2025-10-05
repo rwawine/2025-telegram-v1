@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 
 from database.connection import get_db_pool
-from database.tags_repository import BulkOperationsRepository
+from database.tags_repository import BulkOperationsRepository, TagsRepository
 from services.audit_service import AuditService
 from services.advanced_analytics_service import advanced_analytics_service, MetricPeriod
 
@@ -162,12 +162,19 @@ def bulk_action():
         return redirect(request.referrer or url_for('admin.participants'))
     
     try:
+        action_logged = False
+        action_type = None
+        action_details = None
+        
         if action == 'add_tags':
             tag_ids = [int(id) for id in request.form.getlist('tag_ids[]')]
             count = run_async(BulkOperationsRepository.add_tags_to_participants(
                 participant_ids, tag_ids, current_user.username
             ))
             flash(f'Теги добавлены {count} участникам', 'success')
+            action_type = "BULK_ADD_TAGS"
+            action_details = f"Добавлены теги {tag_ids} для {count} участников"
+            action_logged = True
         
         elif action == 'remove_tags':
             tag_ids = [int(id) for id in request.form.getlist('tag_ids[]')]
@@ -175,6 +182,9 @@ def bulk_action():
                 participant_ids, tag_ids, current_user.username
             ))
             flash(f'Теги удалены у {count} участников', 'success')
+            action_type = "BULK_REMOVE_TAGS"
+            action_details = f"Удалены теги {tag_ids} у {count} участников"
+            action_logged = True
         
         elif action == 'approve':
             reason = request.form.get('reason', 'Массовое одобрение')
@@ -182,6 +192,9 @@ def bulk_action():
                 participant_ids, 'approved', current_user.username, reason
             ))
             flash(f'Одобрено {count} участников', 'success')
+            action_type = "BULK_APPROVE_PARTICIPANTS"
+            action_details = f"Одобрено {count} участников. Причина: {reason}"
+            action_logged = True
         
         elif action == 'reject':
             reason = request.form.get('reason', 'Массовое отклонение')
@@ -189,6 +202,9 @@ def bulk_action():
                 participant_ids, 'rejected', current_user.username, reason
             ))
             flash(f'Отклонено {count} участников', 'warning')
+            action_type = "BULK_REJECT_PARTICIPANTS"
+            action_details = f"Отклонено {count} участников. Причина: {reason}"
+            action_logged = True
         
         elif action == 'blacklist':
             reason = request.form.get('reason', 'Добавлено в черный список')
@@ -196,6 +212,9 @@ def bulk_action():
                 participant_ids, current_user.username, reason
             ))
             flash(f'{count} участников добавлено в черный список', 'danger')
+            action_type = "BULK_BLACKLIST_PARTICIPANTS"
+            action_details = f"{count} участников добавлено в ЧС. Причина: {reason}"
+            action_logged = True
         
         elif action == 'delete':
             reason = request.form.get('reason', 'Массовое удаление')
@@ -203,12 +222,30 @@ def bulk_action():
                 participant_ids, current_user.username, reason
             ))
             flash(f'Удалено {count} участников', 'info')
+            action_type = "BULK_DELETE_PARTICIPANTS"
+            action_details = f"Удалено {count} участников. Причина: {reason}"
+            action_logged = True
         
         elif action == 'export':
             format = request.form.get('format', 'csv')
             data = run_async(BulkOperationsRepository.export_participants_data(
                 participant_ids, format
             ))
+            
+            # Log export action
+            try:
+                run_async(AuditService.log_action(
+                    admin_username=current_user.username,
+                    action_type="BULK_EXPORT_PARTICIPANTS",
+                    entity_type="participant",
+                    entity_id=0,
+                    new_value=f"Экспорт {len(participant_ids)} участников в формате {format}",
+                    reason=f"Массовый экспорт данных участников",
+                    ip_address=request.remote_addr,
+                    user_agent=request.headers.get('User-Agent')
+                ))
+            except Exception as audit_err:
+                current_app.logger.error(f"Failed to log audit action: {audit_err}")
             
             from flask import Response
             return Response(
@@ -221,6 +258,22 @@ def bulk_action():
         
         else:
             flash('Неизвестное действие', 'danger')
+        
+        # Log action to audit if it was a modifying operation
+        if action_logged and action_type and action_details:
+            try:
+                run_async(AuditService.log_action(
+                    admin_username=current_user.username,
+                    action_type=action_type,
+                    entity_type="participant",
+                    entity_id=0,
+                    new_value=f"ID участников: {','.join(map(str, participant_ids[:20]))}{'...' if len(participant_ids) > 20 else ''}",
+                    reason=action_details,
+                    ip_address=request.remote_addr,
+                    user_agent=request.headers.get('User-Agent')
+                ))
+            except Exception as audit_err:
+                current_app.logger.error(f"Failed to log audit action: {audit_err}")
     
     except Exception as e:
         flash(f'Ошибка при выполнении операции: {e}', 'danger')

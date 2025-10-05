@@ -153,7 +153,27 @@ def clear_participants():
         return redirect(url_for("admin.participants"))
     db = _get_admin_db()
     try:
+        # Get count before deletion for audit log
+        stats = db.get_statistics()
+        total_count = stats.get("total_participants", 0)
+        
         db.clear_participants()
+        
+        # Log to audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="CLEAR_ALL_PARTICIPANTS",
+                entity_type="participant",
+                entity_id=0,
+                old_value=f"Удалено {total_count} участников",
+                reason="КРИТИЧЕСКАЯ ОПЕРАЦИЯ: Полная очистка всех участников",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
+        
         flash("Все участники и связанные данные удалены", "success")
     except Exception as e:
         current_app.logger.exception("Ошибка очистки участников")
@@ -172,7 +192,26 @@ def clear_database():
     
     db = _get_admin_db()
     try:
+        # Get stats before deletion for audit log
+        stats = db.get_statistics()
+        
         db.clear_all_database()
+        
+        # Log to audit AFTER clearing (audit_log table should still exist)
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="CLEAR_DATABASE",
+                entity_type="database",
+                entity_id=0,
+                old_value=json.dumps(stats, ensure_ascii=False, default=str),
+                reason="⚠️ КРИТИЧЕСКАЯ ОПЕРАЦИЯ: Полная очистка базы данных",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
+        
         flash("⚠️ База данных полностью очищена! Все данные удалены.", "warning")
         current_app.logger.warning(f"Администратор {current_user.username} выполнил полную очистку БД")
     except Exception as e:
@@ -194,6 +233,22 @@ def delete_selected_participants():
     db = _get_admin_db()
     try:
         deleted = db.delete_participants_cascade([int(pid) for pid in participant_ids])
+        
+        # Log to audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="DELETE_PARTICIPANTS_BATCH",
+                entity_type="participant",
+                entity_id=0,
+                old_value=f"ID участников: {','.join(participant_ids)}",
+                reason=f"Массовое удаление {deleted} участников",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
+        
         flash(f"Удалено участников: {deleted}", "success")
     except Exception as e:
         current_app.logger.exception("Ошибка удаления участников")
@@ -228,6 +283,22 @@ def import_participants():
                 continue
         if batch:
             run_sync(insert_participants_batch(batch))
+            
+            # Log to audit
+            try:
+                _run_async(AuditService.log_action(
+                    admin_username=current_user.username,
+                    action_type="IMPORT_PARTICIPANTS",
+                    entity_type="participant",
+                    entity_id=0,
+                    new_value=f"Импортировано {len(batch)} участников",
+                    reason=f"Массовый импорт из файла {file.filename}",
+                    ip_address=request.remote_addr,
+                    user_agent=request.headers.get('User-Agent')
+                ))
+            except Exception as audit_err:
+                current_app.logger.error(f"Failed to log audit action: {audit_err}")
+            
             flash(f"Импортировано записей: {len(batch)}", "success")
         else:
             flash("В файле не найдено валидных записей", "warning")
@@ -243,6 +314,18 @@ def delete_participant(participant_id: int):
     db = _get_admin_db()
     try:
         with db._connect() as conn:
+            # Get participant data before deletion for audit log
+            participant = conn.execute(
+                "SELECT * FROM participants WHERE id=?", 
+                (participant_id,)
+            ).fetchone()
+            
+            if not participant:
+                flash("Участник не найден", "error")
+                return redirect(url_for("admin.participants"))
+            
+            participant_dict = dict(participant) if hasattr(participant, 'keys') else {}
+            
             # Удаляем связанные данные
             conn.execute("DELETE FROM winners WHERE participant_id=?", (participant_id,))
             conn.execute(
@@ -256,6 +339,22 @@ def delete_participant(participant_id: int):
             # Удаляем самого участника
             conn.execute("DELETE FROM participants WHERE id=?", (participant_id,))
             conn.commit()
+        
+        # Log to audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="DELETE_PARTICIPANT",
+                entity_type="participant",
+                entity_id=participant_id,
+                old_value=json.dumps(participant_dict, ensure_ascii=False, default=str),
+                reason="Удаление участника администратором",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
+        
         flash("Участник и все связанные данные удалены", "success")
     except Exception as e:
         current_app.logger.exception("Ошибка удаления участника")
@@ -1033,14 +1132,36 @@ def support_ticket_detail(ticket_id: int):
 def delete_support_ticket(ticket_id: int):
     db = _get_admin_db()
     try:
-        # Check if ticket exists first
+        # Get ticket data before deletion for audit log
         with db._connect() as conn:
-            ticket_exists = conn.execute("SELECT id FROM support_tickets WHERE id = ?", (ticket_id,)).fetchone()
-            if not ticket_exists:
+            ticket = conn.execute(
+                "SELECT * FROM support_tickets WHERE id = ?", 
+                (ticket_id,)
+            ).fetchone()
+            
+            if not ticket:
                 flash(f"Тикет #{ticket_id} не найден", "error")
                 return redirect(url_for("admin.support_tickets"))
+            
+            ticket_dict = dict(ticket) if hasattr(ticket, 'keys') else {}
         
         db.delete_ticket(ticket_id)
+        
+        # Log to audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="DELETE_TICKET",
+                entity_type="support_ticket",
+                entity_id=ticket_id,
+                old_value=json.dumps(ticket_dict, ensure_ascii=False, default=str),
+                reason="Удаление тикета администратором",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
+        
         flash(f"Тикет #{ticket_id} удален", "success")
     except Exception as e:
         current_app.logger.exception(f"Ошибка удаления тикета #{ticket_id}")
@@ -1372,14 +1493,28 @@ def edit_broadcast(broadcast_id: int):
     try:
         # Update broadcast - only allow editing drafts
         with db._connect() as conn:
+            # Get old broadcast data for audit log
+            old_broadcast = conn.execute(
+                "SELECT * FROM broadcast_jobs WHERE id = ?", 
+                (broadcast_id,)
+            ).fetchone()
+            
+            if not old_broadcast:
+                error_msg = "Рассылка не найдена"
+                if request.headers.get('Accept', '').lower().startswith('application/json'):
+                    return jsonify({"error": error_msg}), 400
+                flash(error_msg, "error")
+                return redirect(url_for("admin.broadcasts"))
+            
             # Check if broadcast is draft
-            result = conn.execute("SELECT status FROM broadcast_jobs WHERE id = ?", (broadcast_id,)).fetchone()
-            if not result or result[0] != 'draft':
+            if old_broadcast[2] != 'draft':  # status is column 2
                 error_msg = "Можно редактировать только черновики"
                 if request.headers.get('Accept', '').lower().startswith('application/json'):
                     return jsonify({"error": error_msg}), 400
                 flash(error_msg, "error")
                 return redirect(url_for("admin.broadcasts"))
+            
+            old_broadcast_dict = dict(old_broadcast) if hasattr(old_broadcast, 'keys') else {}
             
             # Update broadcast
             conn.execute("""
@@ -1388,6 +1523,29 @@ def edit_broadcast(broadcast_id: int):
                 WHERE id = ?
             """, (message_text, title or message_text, target_audience, broadcast_id))
             conn.commit()
+            
+            # Get updated broadcast data
+            new_broadcast = conn.execute(
+                "SELECT * FROM broadcast_jobs WHERE id = ?", 
+                (broadcast_id,)
+            ).fetchone()
+            new_broadcast_dict = dict(new_broadcast) if hasattr(new_broadcast, 'keys') else {}
+        
+        # Log to audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="UPDATE_BROADCAST",
+                entity_type="broadcast",
+                entity_id=broadcast_id,
+                old_value=json.dumps(old_broadcast_dict, ensure_ascii=False, default=str),
+                new_value=json.dumps(new_broadcast_dict, ensure_ascii=False, default=str),
+                reason="Редактирование рассылки администратором",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
         
         flash("Рассылка обновлена", "success")
         if request.headers.get('Accept', '').lower().startswith('application/json'):
@@ -1408,11 +1566,40 @@ def delete_broadcast(broadcast_id: int):
     db = _get_admin_db()
     
     try:
+        # Get broadcast data before deletion for audit log
+        with db._connect() as conn:
+            broadcast = conn.execute(
+                "SELECT * FROM broadcast_jobs WHERE id = ?", 
+                (broadcast_id,)
+            ).fetchone()
+        
+        if not broadcast:
+            flash("Рассылка не найдена", "error")
+            return redirect(url_for("admin.broadcasts"))
+        
+        # Store broadcast data for logging
+        broadcast_dict = dict(broadcast) if hasattr(broadcast, 'keys') else {}
+        
         # Delete broadcast and its queue entries
         with db._connect() as conn:
             conn.execute("DELETE FROM broadcast_queue WHERE job_id = ?", (broadcast_id,))
             conn.execute("DELETE FROM broadcast_jobs WHERE id = ?", (broadcast_id,))
             conn.commit()
+        
+        # Log to audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="DELETE_BROADCAST",
+                entity_type="broadcast",
+                entity_id=broadcast_id,
+                old_value=json.dumps(broadcast_dict, ensure_ascii=False, default=str),
+                reason="Удаление рассылки администратором",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
         
         flash("Рассылка удалена", "success")
     except Exception as e:
