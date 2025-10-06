@@ -4,7 +4,7 @@ import re
 
 
 PHONE_RE = re.compile(r"^(\+7|7|8)?[0-9]{10}$")
-LOYALTY_RE = re.compile(r"^[A-Z0-9]{6,20}$")
+LOYALTY_RE = re.compile(r"^[0-9]{16}$")
 
 
 def validate_full_name(value: str) -> bool:

@@ -152,42 +152,20 @@ def validate_loyalty_card_enhanced(card: str) -> ValidationResult:
     
     card = card.strip()
     
-    # Check length
-    if len(card) < 6:
+    # Check length (must be exactly 16 digits)
+    if len(card) != 16:
         return ValidationResult(
             False,
-            "Номер карты слишком короткий",
-            "Минимум 6 символов. Пример: ABC12345"
+            "Номер карты должен содержать ровно 16 цифр",
+            "Найдите 16 цифр на лицевой стороне карты. Пример: 1234567890123456"
         )
     
-    if len(card) > 20:
+    # Check format: only digits
+    if not card.isdigit():
         return ValidationResult(
             False,
-            "Номер карты слишком длинный",
-            "Максимум 20 символов. Проверьте номер"
-        )
-    
-    # Check format: only alphanumeric
-    if not re.match(r'^[A-Za-z0-9]+$', card):
-        return ValidationResult(
-            False,
-            "Номер карты содержит недопустимые символы",
-            "Используйте только латинские буквы и цифры"
-        )
-    
-    # Check if has at least one letter and one digit
-    if not re.search(r'[A-Za-z]', card):
-        return ValidationResult(
-            False,
-            "Номер карты должен содержать буквы",
-            "Пример: ABC12345 или L98765"
-        )
-    
-    if not re.search(r'\d', card):
-        return ValidationResult(
-            False,
-            "Номер карты должен содержать цифры",
-            "Пример: ABC12345 или L98765"
+            "Номер карты должен содержать только цифры",
+            "Используйте 16 цифр с лицевой стороны карты. Пример: 1234567890123456"
         )
     
     return ValidationResult(True)
