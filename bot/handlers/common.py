@@ -19,7 +19,9 @@ class CommonHandlers:
     def _register(self) -> None:
         # REMOVED: Command("start") - теперь в global_commands.py
         self.router.message.register(self.help_and_support_handler, F.text.in_(["❓ Помощь", "💬 Помощь", "💬 Техподдержка", "💬 Поддержка"]))
-        self.router.message.register(self.status_handler, F.text.in_(["📋 Мой статус", "✅ Мой статус", "⏳ Мой статус", "❌ Мой статус"]))
+        self.router.message.register(self.status_handler, F.text.in_(["📋 Мой статус", "✅ Мой статус", "⏳ Мой статус", "❌ Мой статус", "🔄 Обновить статус"]))
+        # Обработчик для повторной подачи заявки
+        self.router.message.register(self.restart_registration, F.text == "🔄 Подать заявку снова")
         # Обработчик для кнопки "О розыгрыше"
         self.router.message.register(self.show_info_menu, F.text == "📊 О розыгрыше")
         # Обработчик для старых результатов - перенаправляем на помощь
@@ -84,6 +86,29 @@ class CommonHandlers:
             text = "❓ Вы еще не подавали заявку на участие.\n\n🚀 Нажмите 'Начать регистрацию' для участия в розыгрыше!"
             
         await message.answer(text, reply_markup=get_status_keyboard())
+
+    async def restart_registration(self, message: types.Message) -> None:
+        """Обработчик повторной подачи заявки"""
+        from bot.handlers.registration import RegistrationHandler
+        from pathlib import Path
+        from services.cache import get_cache
+        
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id,
+                UserContext.REGISTRATION,
+                UserAction.BUTTON_CLICK
+            )
+        
+        # Создаем экземпляр обработчика регистрации и запускаем процесс
+        registration_handler = RegistrationHandler(
+            upload_dir=Path("uploads"),
+            cache=get_cache(),
+            bot=None  # Не нужен для этого действия
+        )
+        
+        await registration_handler.start_registration(message, None)
 
     async def handle_results_redirect(self, message: types.Message) -> None:
         """Перенаправление старой кнопки результатов на помощь"""

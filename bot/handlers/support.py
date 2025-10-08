@@ -33,7 +33,7 @@ class SupportHandler:
     def _register(self) -> None:
         # Entry
         self.router.message.register(self.open_support_menu, Command("support"))
-        self.router.message.register(self.open_support_menu, F.text.contains("поддержк"))
+        self.router.message.register(self.open_support_menu, F.text == "💬 Поддержка")
 
         # FAQ and categories
         self.router.message.register(self.show_faq, F.text.contains("Частые вопросы"))

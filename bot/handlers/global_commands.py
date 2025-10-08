@@ -38,7 +38,7 @@ class GlobalCommandsHandler:
         self.router.message.register(self.back_to_menu, F.text.contains("Назад в меню"))
         
         # Кнопка "Главное меню" из любого состояния (включая поддержку)
-        self.router.message.register(self.back_to_menu, F.text.contains("Главное меню"))
+        self.router.message.register(self.back_to_menu, F.text == "🏠 Главное меню")
     
     async def handle_start(self, message: types.Message, state: FSMContext) -> None:
         """Команда /start - сбрасывает состояние и показывает меню"""

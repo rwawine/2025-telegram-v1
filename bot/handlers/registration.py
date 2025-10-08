@@ -51,7 +51,6 @@ class RegistrationHandler:
         # Entry points and main actions
         self.router.message.register(self.start_registration, F.text.contains("регистрац"))
         self.router.message.register(self.start_registration, F.text == "🚀 Начать регистрацию")
-        self.router.message.register(self.start_registration, F.text == "🔄 Подать заявку снова")
         # REMOVED: handle_status (теперь в common.py)
         # REMOVED: back_to_menu с "Главное меню" (теперь в global_commands.py)
 
@@ -114,7 +113,7 @@ class RegistrationHandler:
         self.router.callback_query.register(self.handle_explain_leaflet_callback, F.data == "explain_leaflet")
 
         # Registration flow
-        self.router.message.register(self.enter_name, RegistrationStates.enter_name)
+        self.router.message.register(self.enter_name, RegistrationStates.enter_name, F.text)
         # IMPORTANT: limit phone step handler to text only so contacts go to handle_contact
         self.router.message.register(self.enter_phone, RegistrationStates.enter_phone, F.text)
         self.router.message.register(self.enter_loyalty_card, RegistrationStates.enter_loyalty_card)
@@ -133,6 +132,35 @@ class RegistrationHandler:
                 UserContext.REGISTRATION,
                 UserAction.BUTTON_CLICK
             )
+        
+        # Проверяем статус пользователя - блокируем повторную регистрацию
+        from database.repositories import get_participant_status
+        from bot.keyboards.main_menu import get_status_keyboard
+        
+        user_status = await get_participant_status(message.from_user.id)
+        
+        if user_status == "pending":
+            await message.answer(
+                "⏳ **Ваша заявка уже на модерации**\n\n"
+                "📋 Статус: На рассмотрении\n"
+                "⏰ Результат придет в течение 24 часов\n"
+                "🔔 Мы обязательно уведомим вас о решении\n\n"
+                "💡 Пока можете изучить подробности розыгрыша",
+                reply_markup=get_status_keyboard(),
+                parse_mode="Markdown"
+            )
+            return
+        
+        if user_status == "approved":
+            await message.answer(
+                "✅ **Вы уже зарегистрированы!**\n\n"
+                "🎉 Поздравляем! Вы участвуете в розыгрыше!\n"
+                "📋 Статус: Одобрена\n\n"
+                "💡 Следите за обновлениями в чате",
+                reply_markup=get_status_keyboard(),
+                parse_mode="Markdown"
+            )
+            return
         
         # Красивое приветственное сообщение для начала регистрации
         await message.answer(
