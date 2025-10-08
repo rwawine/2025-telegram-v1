@@ -11,7 +11,7 @@ def validate_full_name(value: str) -> bool:
     if not value:
         return False
     stripped = value.strip()
-    if not (2 <= len(stripped) <= 100):
+    if not (2 <= len(stripped) <= 50):
         return False
     
     # Проверяем, что используются только латиница, кириллица и разрешенные символы
@@ -25,7 +25,7 @@ def validate_full_name(value: str) -> bool:
     ]
     
     for char in stripped:
-        if char in {" ", "-", "'"}:
+        if char in {"-", "'"}:  # Убираем пробел, оставляем только дефис и апостроф
             continue
         
         # Проверяем, входит ли символ в разрешенные диапазоны

@@ -20,9 +20,10 @@ class CommonHandlers:
         # REMOVED: Command("start") - теперь в global_commands.py
         self.router.message.register(self.help_and_support_handler, F.text.in_(["❓ Помощь", "💬 Помощь", "💬 Техподдержка", "💬 Поддержка"]))
         self.router.message.register(self.status_handler, F.text.in_(["📋 Мой статус", "✅ Мой статус", "⏳ Мой статус", "❌ Мой статус"]))
-        self.router.message.register(self.show_info_menu, F.text.contains("розыгрыш"))
+        # Обработчик для кнопки "О розыгрыше"
+        self.router.message.register(self.show_info_menu, F.text == "📊 О розыгрыше")
         # Обработчик для старых результатов - перенаправляем на помощь
-        self.router.message.register(self.handle_results_redirect, F.text.contains("🏆 Результаты"))
+        self.router.message.register(self.handle_results_redirect, F.text == "🏆 Результаты")
         self.router.callback_query.register(self.handle_info_callback, F.data.startswith("info_"))
 
     # REMOVED: start method - теперь в global_commands.py
