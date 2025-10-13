@@ -237,8 +237,8 @@ class AdaptiveKeyboards:
         """Клавиатура для создания обращения"""
         keyboard = [
             [KeyboardButton(text="📷 Прикрепить фото"), KeyboardButton(text="📄 Прикрепить документ")],
-            [KeyboardButton(text="✅ Отправить обращение")],
-            [KeyboardButton(text="⬅️ Изменить категорию"), KeyboardButton(text="🏠 Главное меню")]
+            [KeyboardButton(text="✅ Отправить обращение"), KeyboardButton(text="⬅️ Назад")],
+            [KeyboardButton(text="🏠 Главное меню")]
         ]
         
         return ReplyKeyboardMarkup(

@@ -91,7 +91,8 @@ def get_faq_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🏆 Что можно выиграть?", callback_data="faq_prizes")],
         [InlineKeyboardButton(text="📱 Проблемы с фото", callback_data="faq_photo")],
         [InlineKeyboardButton(text="💳 Вопросы по картам", callback_data="faq_cards")],
-        [InlineKeyboardButton(text="📞 Другой вопрос", callback_data="create_ticket")]
+        [InlineKeyboardButton(text="📞 Другой вопрос", callback_data="create_ticket")],
+        [InlineKeyboardButton(text="⬅️ Назад к меню поддержки", callback_data="support_back")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 

@@ -43,6 +43,8 @@ class SupportHandler:
         # 'Главное меню' handled in registration/common; avoid duplicate replies here
 
         # Inline callbacks
+        self.router.callback_query.register(self.handle_support_back, F.data == "support_back")
+        self.router.callback_query.register(self.handle_faq_back, F.data == "faq_back")
         self.router.callback_query.register(self.handle_faq_callback, F.data.startswith("faq_"))
         self.router.callback_query.register(self.start_ticket_from_callback, F.data == "create_ticket")
         self.router.callback_query.register(self.pick_category, F.data.startswith("cat_"))
@@ -58,7 +60,7 @@ class SupportHandler:
         # Оставляем только специфичные кнопки поддержки
         # Ticket actions
         self.router.message.register(self.handle_send_ticket, SupportStates.entering_message, F.text == "✅ Отправить обращение")
-        self.router.message.register(self.handle_change_category, SupportStates.entering_message, F.text == "⬅️ Изменить категорию")
+        self.router.message.register(self.handle_back_from_ticket, SupportStates.entering_message, F.text == "⬅️ Назад")
         self.router.message.register(self.handle_attach_photo, SupportStates.entering_message, F.text == "📷 Прикрепить фото")
         self.router.message.register(self.handle_attach_document, SupportStates.entering_message, F.text == "📄 Прикрепить документ")
         # General navigation removed - теперь в global_commands.py
@@ -67,7 +69,7 @@ class SupportHandler:
         
         # Adding to existing ticket
         self.router.message.register(self.handle_send_addition, SupportStates.adding_to_ticket, F.text == "✅ Отправить")
-        self.router.message.register(self.cancel_addition, SupportStates.adding_to_ticket, F.text == "❌ Отмена")
+        self.router.message.register(self.cancel_addition, SupportStates.adding_to_ticket, F.text.in_(["❌ Отмена", "⬅️ Назад"]))
         self.router.message.register(self.receive_addition_message, SupportStates.adding_to_ticket)
 
     async def open_support_menu(self, message: types.Message) -> None:
@@ -90,7 +92,9 @@ class SupportHandler:
         )
 
     async def show_faq(self, message: types.Message) -> None:
-        await message.answer("Частые вопросы:", reply_markup=get_faq_keyboard())
+        # Добавляем кнопку "Назад" к FAQ
+        faq_keyboard = get_faq_keyboard()
+        await message.answer("❓ **Частые вопросы:**\n\nВыберите интересующий вас вопрос:", reply_markup=faq_keyboard, parse_mode="Markdown")
 
     async def ask_new_ticket(self, message: types.Message, state: FSMContext) -> None:
         context_manager = get_context_manager()
@@ -125,6 +129,32 @@ class SupportHandler:
         await callback.message.answer("Опишите проблему подробнее.")
         await callback.answer()
 
+    async def handle_support_back(self, callback: types.CallbackQuery) -> None:
+        """Возврат к главному меню поддержки"""
+        support_messages = smart_messages.get_support_messages()
+        menu_msg = support_messages["menu"]
+        
+        await callback.message.edit_text(
+            menu_msg["text"],
+            parse_mode="Markdown"
+        )
+        
+        # Показываем reply-клавиатуру с кнопками поддержки
+        await callback.message.answer(
+            "Выберите действие:",
+            reply_markup=get_support_menu_keyboard()
+        )
+        await callback.answer()
+    
+    async def handle_faq_back(self, callback: types.CallbackQuery) -> None:
+        """Возврат к списку FAQ"""
+        await callback.message.edit_text(
+            "❓ **Частые вопросы:**\n\nВыберите интересующий вас вопрос:",
+            reply_markup=get_faq_keyboard(),
+            parse_mode="Markdown"
+        )
+        await callback.answer()
+    
     async def handle_faq_callback(self, callback: types.CallbackQuery) -> None:
         mapping = {
             "faq_registration": "Чтобы подать заявку, нажмите 'Начать регистрацию' в главном меню.",
@@ -133,7 +163,16 @@ class SupportHandler:
             "faq_photo": "Если не отправляется фото — попробуйте сжать изображение или отправить как файл.",
             "faq_cards": "Проверьте правильность номера карты и повторите ввод.",
         }
-        await callback.message.answer(mapping.get(callback.data, "Задайте вопрос оператору."))
+        
+        # Создаем кнопку "Назад" для каждого FAQ
+        back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад к вопросам", callback_data="faq_back")]
+        ])
+        
+        await callback.message.edit_text(
+            mapping.get(callback.data, "Задайте вопрос оператору."),
+            reply_markup=back_keyboard
+        )
         await callback.answer()
 
     async def list_my_tickets(self, message: types.Message) -> None:
@@ -208,6 +247,25 @@ class SupportHandler:
             "Пришлите документ одним сообщением, чтобы прикрепить его к обращению.",
             reply_markup=get_ticket_actions_keyboard(),
         )
+    
+    async def handle_back_from_ticket(self, message: types.Message, state: FSMContext) -> None:
+        """Возврат назад из создания обращения в меню поддержки"""
+        await state.clear()
+        
+        support_messages = smart_messages.get_support_messages()
+        menu_msg = support_messages["menu"]
+        
+        await message.answer(
+            "❌ **Создание обращения отменено**\n\n"
+            "Все несохраненные данные удалены.",
+            parse_mode="Markdown"
+        )
+        
+        await message.answer(
+            menu_msg["text"],
+            reply_markup=get_support_menu_keyboard(),
+            parse_mode="Markdown"
+        )
 
     async def back_to_menu(self, message: types.Message) -> None:
         keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
@@ -253,7 +311,7 @@ class SupportHandler:
             return
         await state.update_data(draft_subject=(text[:80] or draft_subject) or "Обращение", draft_message=(draft_message + ("\n" if draft_message else "") + text))
         await message.answer(
-            "✅ Описание сохранено. Нажмите '✅ Отправить обращение' для отправки, либо измените категорию.",
+            "✅ Описание сохранено. Нажмите '✅ Отправить обращение' для отправки или '⬅️ Назад' для отмены.",
             reply_markup=get_ticket_actions_keyboard(),
         )
 
@@ -263,6 +321,17 @@ class SupportHandler:
         body = data.get("draft_message") or ""
         photos = list(data.get("attachments_photos") or [])
         docs = list(data.get("attachments_docs") or [])
+        
+        # ВАЛИДАЦИЯ: Проверяем что есть хотя бы текст или вложения
+        if not body.strip() and not photos and not docs:
+            await message.answer(
+                "❌ **Обращение пустое!**\n\n"
+                "📝 Пожалуйста, опишите вашу проблему текстом или приложите фото/документ.\n\n"
+                "💡 Чем подробнее опишете - тем быстрее мы сможем помочь!",
+                reply_markup=get_ticket_actions_keyboard(),
+                parse_mode="Markdown"
+            )
+            return
 
         pool = get_db_pool()
         async with pool.connection() as conn:
@@ -334,9 +403,6 @@ class SupportHandler:
         cache = get_cache()
         cache.invalidate(f"status:{message.from_user.id}")
 
-    async def handle_change_category(self, message: types.Message, state: FSMContext) -> None:
-        await message.answer("Выберите категорию:")
-        await message.answer("Категории проблем:", reply_markup=get_support_categories_keyboard())
 
     async def view_ticket_detail(self, callback: types.CallbackQuery) -> None:
         """Детальный просмотр обращения с всеми сообщениями и вложениями"""

@@ -127,6 +127,16 @@ class CommonHandlers:
         await message.answer(text, reply_markup=get_info_menu_keyboard())
 
     async def handle_info_callback(self, callback: types.CallbackQuery) -> None:
+        # Если нажата кнопка "Назад к меню О розыгрыше"
+        if callback.data == "info_back":
+            text = (
+                "🎉 О нашем розыгрыше\n\n"
+                "ℹ️ Выберите раздел для подробной информации:"
+            )
+            await callback.message.edit_text(text, reply_markup=get_info_menu_keyboard())
+            await callback.answer()
+            return
+        
         mapping = {
             "info_rules": (
                 "🗒 *Правила участия в розыгрыше*\n\n"
@@ -155,9 +165,16 @@ class CommonHandlers:
                 "Используем проверяемый алгоритм выбора, ведем трансляции и публикуем статистику."
             ),
         }
+        
+        # Создаем кнопку "Назад" для возврата к меню "О розыгрыше"
+        back_button = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="⬅️ Назад к меню", callback_data="info_back")]
+        ])
+        
         await callback.message.edit_text(
             mapping.get(callback.data, "Информация недоступна."),
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=back_button
         )
         await callback.answer()
 
