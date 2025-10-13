@@ -64,6 +64,9 @@ class RegistrationHandler:
         # Убрали обработчик reply-кнопки "лифлет" - теперь используем инлайн-кнопку
 
         # Content-type aware guards (must be before main state handlers)
+        # Name step: help button handler BEFORE validation
+        self.router.message.register(self.help_enter_name, RegistrationStates.enter_name, F.text.contains("❓ Как правильно ввести имя"))
+        
         # Name step: block non-text and premature phone/contact
         self.router.message.register(self.name_unexpected_contact, RegistrationStates.enter_name, F.contact)
         self.router.message.register(self.name_unexpected_photo, RegistrationStates.enter_name, F.photo)
@@ -74,6 +77,9 @@ class RegistrationHandler:
         self.router.message.register(self.name_unexpected_media, RegistrationStates.enter_name, F.audio)
         self.router.message.register(self.name_unexpected_media, RegistrationStates.enter_name, F.location)
 
+        # Phone step: help button handler BEFORE validation
+        self.router.message.register(self.help_enter_phone, RegistrationStates.enter_phone, F.text.contains("❓ Проблемы с номером"))
+        
         # Phone step: block irrelevant content (contact is handled separately below)
         self.router.message.register(self.phone_unexpected_photo, RegistrationStates.enter_phone, F.photo)
         self.router.message.register(self.phone_unexpected_document, RegistrationStates.enter_phone, F.document)
@@ -83,6 +89,9 @@ class RegistrationHandler:
         self.router.message.register(self.phone_unexpected_media, RegistrationStates.enter_phone, F.audio)
         self.router.message.register(self.phone_unexpected_media, RegistrationStates.enter_phone, F.location)
 
+        # Loyalty card step: help button handler BEFORE validation
+        self.router.message.register(self.help_find_card_number, RegistrationStates.enter_loyalty_card, F.text.contains("❓ Где найти номер карты"))
+        
         # Loyalty card step: block non-text
         self.router.message.register(self.card_unexpected_photo, RegistrationStates.enter_loyalty_card, F.photo)
         self.router.message.register(self.card_unexpected_document, RegistrationStates.enter_loyalty_card, F.document)
@@ -116,7 +125,8 @@ class RegistrationHandler:
         self.router.message.register(self.enter_name, RegistrationStates.enter_name, F.text)
         # IMPORTANT: limit phone step handler to text only so contacts go to handle_contact
         self.router.message.register(self.enter_phone, RegistrationStates.enter_phone, F.text)
-        self.router.message.register(self.enter_loyalty_card, RegistrationStates.enter_loyalty_card)
+        # IMPORTANT: limit loyalty card handler to text only to prevent processing other content types
+        self.router.message.register(self.enter_loyalty_card, RegistrationStates.enter_loyalty_card, F.text)
         self.router.message.register(self.upload_photo, RegistrationStates.upload_photo, F.photo)
 
         # Special inputs
@@ -809,6 +819,75 @@ class RegistrationHandler:
             "• Приобрести в любом магазине сети Магнолия за 29,90 рублей\n"
             "• Скачать с официального сайта Акции https://play.mgnl.ru/\n\n"
             "🏆 Победитель определяется среди тех, кто собрал полную коллекцию!",
+            parse_mode="Markdown"
+        )
+
+    async def help_enter_name(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик кнопки помощи '❓ Как правильно ввести имя?' - показывает подсказку без изменения состояния"""
+        await message.answer(
+            "✍️ **Как правильно ввести имя?**\n\n"
+            "📝 **Правильные примеры:**\n"
+            "• Алексей\n"
+            "• Анна-Мария\n"
+            "• Жан-Поль\n"
+            "• О'Коннор\n"
+            "• Мария\n\n"
+            "❌ **Неправильные примеры:**\n"
+            "• Иванов Иван (фамилия + имя)\n"
+            "• Иван Иванович (имя + отчество)\n"
+            "• Ваня123 (цифры)\n"
+            "• i.ivanov (латиница)\n\n"
+            "💡 **Правила:**\n"
+            "• Только имя (без фамилии и отчества)\n"
+            "• Допускаются дефисы и апострофы\n"
+            "• Минимум 2 символа\n\n"
+            "📊 Прогресс: 🟢⚪⚪⚪ (1/4)",
+            reply_markup=get_name_input_keyboard(),
+            parse_mode="Markdown"
+        )
+
+    async def help_enter_phone(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик кнопки помощи '❓ Проблемы с номером?' - показывает подсказку без изменения состояния"""
+        await message.answer(
+            "📱 **Как ввести номер телефона?**\n\n"
+            "✅ **Правильные форматы:**\n"
+            "• +79001234567\n"
+            "• +1234567890\n"
+            "• 89001234567\n"
+            "• 123-456-7890\n\n"
+            "❌ **Неправильные примеры:**\n"
+            "• 123 (слишком короткий)\n"
+            "• abc123 (содержит буквы)\n"
+            "• 12 (менее 7 цифр)\n\n"
+            "💡 **Два способа ввода:**\n"
+            "1️⃣ **Быстро:** Нажмите кнопку «📞 Отправить мой номер»\n"
+            "   • Безопасно и быстро\n"
+            "   • Гарантирует правильность\n\n"
+            "2️⃣ **Вручную:** Напишите номер текстом\n"
+            "   • Любой международный формат\n"
+            "   • От 7 до 15 цифр\n"
+            "   • С кодом страны или без\n\n"
+            "📊 Прогресс: 🟢🟢⚪⚪ (2/4)",
+            reply_markup=get_phone_input_keyboard(),
+            parse_mode="Markdown"
+        )
+
+    async def help_find_card_number(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик кнопки помощи '❓ Где найти номер карты?' - показывает подсказку без изменения состояния"""
+        await message.answer(
+            "💳 **Где найти номер карты лояльности?**\n\n"
+            "📍 **Физическая карта:**\n"
+            "• На лицевой стороне карты\n"
+            "• Обычно это 16 цифр крупным шрифтом\n"
+            "• Может быть разбит на группы по 4 цифры\n\n"
+            "📱 **Мобильное приложение:**\n"
+            "• Откройте приложение Магнолия\n"
+            "• Перейдите в раздел «Моя карта» или «Профиль»\n"
+            "• Номер отображается на экране карты\n\n"
+            "✅ **Пример:** 1234567890123456\n\n"
+            "💡 **Введите только цифры, без пробелов и дефисов**\n\n"
+            "📊 Прогресс: 🟢🟢🟢⚪ (3/4)",
+            reply_markup=get_loyalty_card_keyboard(),
             parse_mode="Markdown"
         )
 
