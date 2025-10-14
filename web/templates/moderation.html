@@ -30,7 +30,7 @@
                             <div class="text-mono" style="font-size: 12px; color: var(--color-gray-500);">ID: {{ p.id }}</div>
                         </td>
                         <td class="small">{{ p.phone_number }}<br>@{{ p.username }}</td>
-                        <td>{{ p.registration_date }}</td>
+                        <td>{{ p.registration_date|moscow_time }}</td>
                         <td>
                             {% if p.photo_path %}
                             <a href="#" data-bs-toggle="modal" data-bs-target="#photoModal-{{ p.id }}" title="Просмотр фото">

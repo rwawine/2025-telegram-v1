@@ -260,7 +260,7 @@
                             <dd class="col-sm-9"><span class="badge" :class="statusClass(viewData.status)" x-text="viewData.status || 'N/A'"></span></dd>
                             
                             <dt class="col-sm-3">Создана</dt>
-                            <dd class="col-sm-9" x-text="(viewData.created_at && (new Date(viewData.created_at)).toLocaleString()) || 'N/A'"></dd>
+                            <dd class="col-sm-9" x-text="(viewData.created_at && (new Date(viewData.created_at + 'Z')).toLocaleString('ru-RU', {timeZone: 'Europe/Moscow'})) || 'N/A'"></dd>
                         </dl>
                         
                         <h6 class="mt-4">Сообщение:</h6>

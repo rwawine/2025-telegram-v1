@@ -42,7 +42,7 @@
                         <dd class="col-sm-8">{{ participant.loyalty_card }}</dd>
 
                         <dt class="col-sm-4">Дата регистрации</dt>
-                        <dd class="col-sm-8">{{ participant.registration_date if participant.registration_date else 'N/A' }}</dd>
+                        <dd class="col-sm-8">{{ participant.registration_date|moscow_time if participant.registration_date else 'N/A' }}</dd>
 
                         <dt class="col-sm-4">Текущий статус</dt>
                         <dd class="col-sm-8">

@@ -37,7 +37,7 @@
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-4">Дата розыгрыша</dt>
-                        <dd class="col-sm-8">{{ winner.draw_date if winner.draw_date else 'N/A' }}</dd>
+                        <dd class="col-sm-8">{{ winner.draw_date|moscow_time if winner.draw_date else 'N/A' }}</dd>
                         <dt class="col-sm-4">Номер розыгрыша</dt>
                         <dd class="col-sm-8"><span class="badge bg-secondary">{{ winner.draw_number }}</span></dd>
                         <dt class="col-sm-4">Хеш семени</dt>

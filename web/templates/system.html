@@ -31,7 +31,7 @@
                 <div>Uploads: {% if health.uploads_exists %}<span class="badge badge-light-success">OK</span>{% else %}<span class="badge badge-light-danger">Нет</span>{% endif %}</div>
                 <div>Exports: {% if health.exports_exists %}<span class="badge badge-light-success">OK</span>{% else %}<span class="badge badge-light-danger">Нет</span>{% endif %}</div>
                 <div>Logs: {% if health.logs_exists %}<span class="badge badge-light-success">OK</span>{% else %}<span class="badge badge-light-danger">Нет</span>{% endif %}</div>
-                <div>Время сервера: <code>{{ health.time }}</code></div>
+                <div>Время сервера: <code>{{ health.time|moscow_time }}</code></div>
             </div>
         </div>
     </div>
@@ -52,7 +52,7 @@
                     <tr>
                         <td class="text-mono">{{ l.name }}</td>
                         <td>{{ (l.size // 1024) }} КБ</td>
-                        <td>{{ l.mtime }}</td>
+                        <td>{{ l.mtime|moscow_time }}</td>
                         <td class="text-end"><a class="btn btn-sm btn-outline" href="{{ url_for('admin.view_log', log_name=l.name) }}">Открыть</a></td>
                     </tr>
                     {% endfor %}

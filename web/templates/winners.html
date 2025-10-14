@@ -48,7 +48,7 @@
                         <td>{{ w.position }}</td>
                         <td><a href="{{ url_for('admin.winner_detail', winner_id=w.id) }}">{{ w.full_name or ('ID ' ~ w.participant_id) }}</a></td>
                         <td class="text-muted small">@{{ w.username }} {{ w.phone_number }}</td>
-                        <td>#{{ w.draw_number }} — {{ w.draw_date }}</td>
+                        <td>#{{ w.draw_number }} — {{ w.draw_date|moscow_time }}</td>
                         <td>
                             <div class="btn-group">
                                 <a class="btn btn-sm btn-outline" href="{{ url_for('admin.winner_detail', winner_id=w.id) }}">Открыть</a>
