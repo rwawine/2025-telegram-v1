@@ -23,13 +23,13 @@
                 <tbody>
                     {% for r in runs %}
                     <tr>
-                        <td>#{{ r.id }}</td>
+                        <td>#{{ loop.index }}</td>
                         <td>{{ r.executed_at }}</td>
                         <td>{{ r.winners_count }}</td>
                         <td>
                             <a class="btn btn-sm btn-outline" href="{{ url_for('admin.winners_list', run_id=r.id) }}">Победители</a>
                             <a class="btn btn-sm btn-outline" href="{{ url_for('admin.export_winners', run_id=r.id) }}">Экспорт</a>
-                            <button class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at }}">
+                            <button type="button" class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at }}">
                                 <i class="fas fa-trash"></i> Удалить
                             </button>
                         </td>
@@ -50,7 +50,9 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.delete-lottery-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             const runId = this.dataset.runId;
             const executedAt = this.dataset.executedAt;
             

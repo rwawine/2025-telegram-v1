@@ -133,14 +133,14 @@
                     <thead><tr><th>#</th><th>Дата</th><th>Победителей</th><th>Действия</th></tr></thead>
                     <tbody>
                         {% for r in runs %}
-                        <tr>
-                            <td>#{{ r.id }}</td>
+                        <tr {% if selected_run == r.id %}class="table-active" style="background-color: #e3f2fd;"{% endif %}>
+                            <td>#{{ loop.index }}</td>
                             <td>{{ r.executed_at }}</td>
                             <td>{{ r.winners_count }}</td>
                             <td>
                                 <a class="btn btn-sm btn-outline" href="{{ url_for('admin.lottery', run_id=r.id) }}">Открыть</a>
                                 <a class="btn btn-sm btn-outline" href="{{ url_for('admin.export_winners', run_id=r.id) }}">Экспорт</a>
-                                <button class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at }}">
+                                <button type="button" class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at }}">
                                     <i class="fas fa-trash"></i> Удалить
                                 </button>
                             </td>
@@ -162,28 +162,39 @@ function notifyWinners() {
     }
 }
 
-document.querySelectorAll('.delete-lottery-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const runId = this.dataset.runId;
-        const executedAt = this.dataset.executedAt;
-        
-        if (confirm(`Вы уверены, что хотите удалить розыгрыш #${runId} от ${executedAt}?\n\nВНИМАНИЕ: Будут удалены ВСЕ победители этого розыгрыша!\n\nЭто действие необратимо.`)) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `/admin/lottery/delete_run/${runId}`;
+document.addEventListener('DOMContentLoaded', function() {
+    // Debug: проверка кликов на ссылки "Открыть"
+    document.querySelectorAll('a.btn-outline').forEach(link => {
+        link.addEventListener('click', function(e) {
+            console.log('Клик по ссылке:', this.href);
+        });
+    });
+    
+    document.querySelectorAll('.delete-lottery-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const runId = this.dataset.runId;
+            const executedAt = this.dataset.executedAt;
             
-            const csrfToken = document.querySelector('meta[name="csrf-token"]');
-            if (csrfToken) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'csrf_token';
-                input.value = csrfToken.content;
-                form.appendChild(input);
+            if (confirm(`Вы уверены, что хотите удалить розыгрыш #${runId} от ${executedAt}?\n\nВНИМАНИЕ: Будут удалены ВСЕ победители этого розыгрыша!\n\nЭто действие необратимо.`)) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/admin/lottery/delete_run/${runId}`;
+                
+                const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                if (csrfToken) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'csrf_token';
+                    input.value = csrfToken.content;
+                    form.appendChild(input);
+                }
+                
+                document.body.appendChild(form);
+                form.submit();
             }
-            
-            document.body.appendChild(form);
-            form.submit();
-        }
+        });
     });
 });
 </script>
