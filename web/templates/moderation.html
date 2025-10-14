@@ -99,8 +99,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
     // Add click handlers to all photo previews
-    console.log('Found photo previews:', document.querySelectorAll('.photo-preview-trigger').length);
-    
     document.querySelectorAll('.photo-preview-trigger').forEach(function(img) {
         img.addEventListener('click', function(e) {
             e.preventDefault();
@@ -112,23 +110,12 @@ document.addEventListener('DOMContentLoaded', function(){
             const participantName = this.getAttribute('data-participant-name') || 'Участник';
             const photoSrc = this.getAttribute('data-photo-src') || this.src;
             
-            console.log('Photo clicked:', photoSrc);
-            console.log('Modal element found:', !!modal);
-            console.log('Modal img found:', !!modalImg);
-            console.log('Modal title found:', !!modalTitle);
-            
-            if (!modal) {
-                console.error('Modal #photoModal not found!');
-                return;
-            }
+            if (!modal) return;
             
             if (modalImg) {
                 modalImg.src = photoSrc;
                 modalImg.alt = `Фото ${participantName}`;
                 modalImg.setAttribute('data-full-src', photoSrc);
-                console.log('Image src set to:', modalImg.src);
-            } else {
-                console.error('Modal image element not found!');
             }
             
             if (modalTitle) {
@@ -136,27 +123,19 @@ document.addEventListener('DOMContentLoaded', function(){
             }
             
             // Show modal
-            console.log('Showing modal...');
             modal.style.display = 'block';
             modal.classList.add('show');
             document.body.classList.add('modal-open');
             
             // Remove old backdrop if exists
             const oldBackdrop = document.getElementById('photoModalBackdrop');
-            if (oldBackdrop) {
-                oldBackdrop.remove();
-                console.log('Removed old backdrop');
-            }
+            if (oldBackdrop) oldBackdrop.remove();
             
             // Add backdrop
             const backdrop = document.createElement('div');
             backdrop.className = 'modal-backdrop fade show';
             backdrop.id = 'photoModalBackdrop';
             document.body.appendChild(backdrop);
-            
-            console.log('Modal display:', modal.style.display);
-            console.log('Modal classes:', modal.className);
-            console.log('Backdrop added');
         });
     });
     
