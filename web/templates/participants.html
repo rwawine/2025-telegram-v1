@@ -137,8 +137,6 @@
                                          alt="Фото" 
                                          class="photo-preview me-2" 
                                          style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px; cursor: pointer;"
-                                         data-bs-toggle="modal" 
-                                         data-bs-target="#photoModal"
                                          data-photo-src="{{ url_for('admin.serve_upload', filename=photo_basename) }}"
                                          data-participant-name="{{ p.full_name or ('ID ' ~ p.id) }}"
                                          onclick="showPhotoModal(this)">
@@ -345,6 +343,24 @@ document.addEventListener('DOMContentLoaded', function() {
         if (modalTitle) {
             modalTitle.textContent = `Фото участника: ${participantName}`;
         }
+        
+        // Manually show modal to avoid Bootstrap issues
+        const modal = document.getElementById('photoModal');
+        if (modal && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        } else if (modal) {
+            // Fallback for older Bootstrap versions
+            modal.style.display = 'block';
+            modal.classList.add('show');
+            document.body.classList.add('modal-open');
+            
+            // Add backdrop
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.id = 'photoModalBackdrop';
+            document.body.appendChild(backdrop);
+        }
     };
     
     // Open photo in new tab
@@ -354,6 +370,42 @@ document.addEventListener('DOMContentLoaded', function() {
             window.open(modalImg.getAttribute('data-full-src'), '_blank');
         }
     };
+    
+    // Close photo modal manually
+    window.closePhotoModal = function() {
+        const modal = document.getElementById('photoModal');
+        const backdrop = document.getElementById('photoModalBackdrop');
+        
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+            document.body.classList.remove('modal-open');
+        }
+        
+        if (backdrop) {
+            backdrop.remove();
+        }
+    };
+    
+    // Add event listeners for modal close
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('photoModal');
+        if (modal) {
+            // Close on backdrop click
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closePhotoModal();
+                }
+            });
+            
+            // Close on escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.classList.contains('show')) {
+                    closePhotoModal();
+                }
+            });
+        }
+    });
 
     // Ensure dropdown menus in tables overlay the table (portal to body)
     (function setupTableDropdownPortals() {
@@ -481,7 +533,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="photoModalLabel">Фото участника</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" onclick="closePhotoModal()" aria-label="Close"></button>
             </div>
             <div class="modal-body text-center">
                 <img id="modalPhotoImg" src="" alt="Фото участника" class="img-fluid rounded shadow" style="max-height: 70vh; max-width: 100%;">
