@@ -191,6 +191,26 @@
         </div>
     </div>
 </div>
+
+<!-- Photo Modal -->
+<div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="photoModalLabel">Фото участника</h5>
+                <button type="button" class="btn-close" onclick="closePhotoModal()" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalPhotoImg" src="" alt="Фото участника" class="img-fluid rounded shadow" style="max-height: 70vh; max-width: 100%;">
+                <div class="mt-3">
+                    <button type="button" class="btn btn-outline-primary" onclick="openPhotoInNewTab()">
+                        <i class="fas fa-external-link-alt me-1"></i>Открыть в полном размере
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -548,23 +568,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <!-- Clear All Modal удалён по требованию -->
-
-<!-- Photo Modal -->
-<div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="photoModalLabel">Фото участника</h5>
-                <button type="button" class="btn-close" onclick="closePhotoModal()" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center">
-                <img id="modalPhotoImg" src="" alt="Фото участника" class="img-fluid rounded shadow" style="max-height: 70vh; max-width: 100%;">
-                <div class="mt-3">
-                    <button type="button" class="btn btn-outline-primary" onclick="openPhotoInNewTab()">
-                        <i class="fas fa-external-link-alt me-1"></i>Открыть в полном размере
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
