@@ -135,11 +135,10 @@
                                     {% set photo_basename = p.photo_path.split('/')[-1].split('\\')[-1] %}
                                     <img src="{{ url_for('admin.serve_upload', filename=photo_basename) }}" 
                                          alt="Фото" 
-                                         class="photo-preview me-2" 
+                                         class="photo-preview-trigger me-2" 
                                          style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px; cursor: pointer;"
                                          data-photo-src="{{ url_for('admin.serve_upload', filename=photo_basename) }}"
-                                         data-participant-name="{{ p.full_name or ('ID ' ~ p.id) }}"
-                                         onclick="showPhotoModal(this)">
+                                         data-participant-name="{{ p.full_name or ('ID ' ~ p.id) }}">
                                     <span class="status-badge status-approved" style="font-size: 11px;">Есть</span>
                                 </div>
                             {% else %}
@@ -326,42 +325,50 @@ document.addEventListener('DOMContentLoaded', function() {
         // Clear All Modal удалён
     }
 
-    // Photo modal function
-    window.showPhotoModal = function(img) {
-        const modalImg = document.getElementById('modalPhotoImg');
-        const modalTitle = document.getElementById('photoModalLabel');
-        const participantName = img.getAttribute('data-participant-name') || 'Участник';
-        const photoSrc = img.getAttribute('data-photo-src') || img.src;
-        
-        if (modalImg && img) {
-            modalImg.src = photoSrc;
-            modalImg.alt = `Фото ${participantName}`;
-            // Store photo src for opening in new tab
-            modalImg.setAttribute('data-full-src', photoSrc);
-        }
-        
-        if (modalTitle) {
-            modalTitle.textContent = `Фото участника: ${participantName}`;
-        }
-        
-        // Manually show modal to avoid Bootstrap issues
-        const modal = document.getElementById('photoModal');
-        if (modal && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-            const bsModal = new bootstrap.Modal(modal);
-            bsModal.show();
-        } else if (modal) {
-            // Fallback for older Bootstrap versions
-            modal.style.display = 'block';
-            modal.classList.add('show');
-            document.body.classList.add('modal-open');
+    // Add click handlers to all photo previews
+    document.querySelectorAll('.photo-preview-trigger').forEach(function(img) {
+        img.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             
-            // Add backdrop
-            const backdrop = document.createElement('div');
-            backdrop.className = 'modal-backdrop fade show';
-            backdrop.id = 'photoModalBackdrop';
-            document.body.appendChild(backdrop);
-        }
-    };
+            const modalImg = document.getElementById('modalPhotoImg');
+            const modalTitle = document.getElementById('photoModalLabel');
+            const participantName = this.getAttribute('data-participant-name') || 'Участник';
+            const photoSrc = this.getAttribute('data-photo-src') || this.src;
+            
+            console.log('Photo clicked:', photoSrc); // Debug
+            
+            if (modalImg) {
+                modalImg.src = photoSrc;
+                modalImg.alt = `Фото ${participantName}`;
+                modalImg.setAttribute('data-full-src', photoSrc);
+            }
+            
+            if (modalTitle) {
+                modalTitle.textContent = `Фото участника: ${participantName}`;
+            }
+            
+            // Show modal
+            const modal = document.getElementById('photoModal');
+            if (modal) {
+                modal.style.display = 'block';
+                modal.classList.add('show');
+                document.body.classList.add('modal-open');
+                
+                // Remove old backdrop if exists
+                const oldBackdrop = document.getElementById('photoModalBackdrop');
+                if (oldBackdrop) oldBackdrop.remove();
+                
+                // Add backdrop
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                backdrop.id = 'photoModalBackdrop';
+                document.body.appendChild(backdrop);
+                
+                console.log('Modal should be visible now'); // Debug
+            }
+        });
+    });
     
     // Open photo in new tab
     window.openPhotoInNewTab = function() {
@@ -388,24 +395,22 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     
     // Add event listeners for modal close
-    document.addEventListener('DOMContentLoaded', function() {
-        const modal = document.getElementById('photoModal');
-        if (modal) {
-            // Close on backdrop click
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) {
-                    closePhotoModal();
-                }
-            });
-            
-            // Close on escape key
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && modal.classList.contains('show')) {
-                    closePhotoModal();
-                }
-            });
-        }
-    });
+    const photoModal = document.getElementById('photoModal');
+    if (photoModal) {
+        // Close on backdrop click
+        photoModal.addEventListener('click', function(e) {
+            if (e.target === photoModal) {
+                closePhotoModal();
+            }
+        });
+        
+        // Close on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && photoModal.classList.contains('show')) {
+                closePhotoModal();
+            }
+        });
+    }
 
     // Ensure dropdown menus in tables overlay the table (portal to body)
     (function setupTableDropdownPortals() {
