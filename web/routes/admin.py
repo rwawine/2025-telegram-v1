@@ -1270,6 +1270,21 @@ def delete_winner(winner_id: int):
     return redirect(url_for("admin.lottery"))
 
 
+@admin_bp.route("/lottery/delete_run/<int:run_id>", methods=["POST"])
+@login_required
+def delete_lottery_run(run_id: int):
+    """Delete a lottery run and all its winners."""
+    db = _get_admin_db()
+    try:
+        db.delete_lottery_run(run_id)
+        flash(f"Розыгрыш #{run_id} и все его победители успешно удалены", "success")
+    except Exception as e:
+        current_app.logger.exception(f"Ошибка при удалении розыгрыша {run_id}")
+        flash(f"Ошибка при удалении розыгрыша: {e}", "error")
+    
+    return redirect(url_for("admin.lottery"))
+
+
 @admin_bp.route("/lottery/notify_winners", methods=["POST"])
 @login_required
 def notify_winners():
@@ -1305,7 +1320,10 @@ def notify_winners():
         
         for winner in winners:
             try:
-                participant_id = winner.get("participant_id")
+                # Convert sqlite3.Row to dict for easier access
+                winner_dict = dict(winner)
+                
+                participant_id = winner_dict.get("participant_id")
                 if not participant_id:
                     continue
                 
@@ -1316,7 +1334,7 @@ def notify_winners():
                     continue
                 
                 telegram_id = telegram_ids[0]
-                prize = winner.get("prize_description", "Приз")
+                prize = winner_dict.get("prize_description", "Приз")
                 
                 # Send winner notification
                 success = run_coroutine_sync(
@@ -1332,7 +1350,7 @@ def notify_winners():
                     error_count += 1
                     
             except Exception as e:
-                current_app.logger.error(f"Failed to notify winner {winner.get('id')}: {e}")
+                current_app.logger.error(f"Failed to notify winner {winner_dict.get('id') if 'winner_dict' in locals() else 'unknown'}: {e}")
                 error_count += 1
         
         # Show result
@@ -1370,8 +1388,11 @@ def notify_single_winner(winner_id: int):
             flash("Победитель не найден", "error")
             return redirect(url_for("admin.lottery"))
         
+        # Convert sqlite3.Row to dict for easier access
+        winner_dict = dict(winner)
+        
         # Get participant telegram ID
-        participant_id = winner.get("participant_id")
+        participant_id = winner_dict.get("participant_id")
         telegram_ids = db.get_telegram_ids_for_participants([participant_id])
         
         if not telegram_ids:
@@ -1379,7 +1400,7 @@ def notify_single_winner(winner_id: int):
             return redirect(url_for("admin.winner_detail", winner_id=winner_id))
         
         telegram_id = telegram_ids[0]
-        prize = winner.get("prize_description", "Приз")
+        prize = winner_dict.get("prize_description", "Приз")
         
         # Send notification
         success = run_coroutine_sync(

@@ -29,6 +29,9 @@
                         <td>
                             <a class="btn btn-sm btn-outline" href="{{ url_for('admin.winners_list', run_id=r.id) }}">Победители</a>
                             <a class="btn btn-sm btn-outline" href="{{ url_for('admin.export_winners', run_id=r.id) }}">Экспорт</a>
+                            <button class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at }}">
+                                <i class="fas fa-trash"></i> Удалить
+                            </button>
                         </td>
                     </tr>
                     {% else %}
@@ -40,6 +43,38 @@
             </table>
         </div>
     </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.delete-lottery-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const runId = this.dataset.runId;
+            const executedAt = this.dataset.executedAt;
+            
+            if (confirm(`Вы уверены, что хотите удалить розыгрыш #${runId} от ${executedAt}?\n\nВНИМАНИЕ: Будут удалены ВСЕ победители этого розыгрыша!\n\nЭто действие необратимо.`)) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/admin/lottery/delete_run/${runId}`;
+                
+                const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                if (csrfToken) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'csrf_token';
+                    input.value = csrfToken.content;
+                    form.appendChild(input);
+                }
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
 
 

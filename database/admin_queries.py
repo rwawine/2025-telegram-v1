@@ -161,11 +161,25 @@ class AdminDatabase:
                 (limit,),
             ).fetchall()
 
+    def delete_lottery_run(self, run_id: int) -> bool:
+        """Delete a lottery run and all associated winners."""
+        with self._connect() as conn:
+            try:
+                # First delete all winners associated with this run
+                conn.execute("DELETE FROM winners WHERE run_id=?", (run_id,))
+                # Then delete the lottery run itself
+                conn.execute("DELETE FROM lottery_runs WHERE id=?", (run_id,))
+                conn.commit()
+                return True
+            except Exception as e:
+                conn.rollback()
+                raise e
+
     def list_winners(self, run_id: Optional[int] = None, limit: int = 100) -> List[sqlite3.Row]:
         query = (
-            "SELECT w.id, w.run_id, w.participant_id, p.full_name, p.phone_number, p.username, w.position, w.lottery_date, w.prize_description, "
+            "SELECT w.id, w.run_id, w.participant_id, p.full_name, p.phone_number, p.username, p.loyalty_card, p.photo_path, w.position, w.lottery_date, w.prize_description, "
             "lr.seed, lr.executed_at as draw_date, lr.id as draw_number, "
-            "substr(lr.seed, 1, 32) as seed_hash "
+            "substr(lr.seed, 1, 32) as seed_hash, 1 as is_valid "
             "FROM winners w "
             "JOIN participants p ON p.id = w.participant_id "
             "JOIN lottery_runs lr ON lr.id = w.run_id"
@@ -182,9 +196,9 @@ class AdminDatabase:
     def iter_winners(self, run_id: Optional[int] = None, chunk_size: int = 5000):
         """Yield winners rows in chunks to support streaming exports."""
         base_query = (
-            "SELECT w.id, w.run_id, w.participant_id, p.full_name, p.phone_number, p.username, w.position, w.lottery_date, w.prize_description, "
+            "SELECT w.id, w.run_id, w.participant_id, p.full_name, p.phone_number, p.username, p.loyalty_card, p.photo_path, w.position, w.lottery_date, w.prize_description, "
             "lr.seed, lr.executed_at as draw_date, lr.id as draw_number, "
-            "substr(lr.seed, 1, 32) as seed_hash "
+            "substr(lr.seed, 1, 32) as seed_hash, 1 as is_valid "
             "FROM winners w "
             "JOIN participants p ON p.id = w.participant_id "
             "JOIN lottery_runs lr ON lr.id = w.run_id"

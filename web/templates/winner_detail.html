@@ -23,7 +23,7 @@
                         <dt class="col-sm-4">Имя</dt>
                         <dd class="col-sm-8">{{ winner.full_name or ('ID ' ~ winner.participant_id) }}</dd>
                         <dt class="col-sm-4">Телефон</dt>
-                        <dd class="col-sm-8">{{ participant.phone_number }}</dd>
+                        <dd class="col-sm-8">{{ winner.phone_number or '—' }}</dd>
                         <dt class="col-sm-4">Telegram</dt>
                         <dd class="col-sm-8">{% if winner.username %}@{{ winner.username }}{% else %}-{% endif %}</dd>
                         <dt class="col-sm-4">Карта лояльности</dt>
@@ -47,6 +47,20 @@
                     </dl>
                 </div>
             </div>
+
+            {% if winner.photo_path %}
+            <div class="card">
+                <div class="card-header"><i class="fa-solid fa-image me-2"></i>Фото лифлета</div>
+                <div class="card-body text-center">
+                    <img src="/{{ winner.photo_path }}" alt="Фото лифлета" class="img-fluid rounded" style="max-height: 400px;">
+                    <div class="mt-2">
+                        <a href="/{{ winner.photo_path }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="fa-solid fa-external-link-alt me-1"></i>Открыть в полном размере
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 

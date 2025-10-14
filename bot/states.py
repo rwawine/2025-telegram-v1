@@ -4,6 +4,8 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class RegistrationStates(StatesGroup):
+    accept_agreement = State()
+    declined_agreement = State()
     enter_name = State()
     enter_phone = State()
     enter_loyalty_card = State()

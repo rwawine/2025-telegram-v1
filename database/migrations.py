@@ -31,6 +31,16 @@ SCHEMA_SQL: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_participants_phone ON participants(phone_number);",
     "CREATE INDEX IF NOT EXISTS idx_participants_registration_date ON participants(registration_date);",
     "CREATE INDEX IF NOT EXISTS idx_participants_composite ON participants(status, registration_date);",
+    
+    # Таблица для хранения согласий на обработку персональных данных
+    """
+    CREATE TABLE IF NOT EXISTS user_agreements (
+        telegram_id BIGINT PRIMARY KEY,
+        accepted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_user_agreements_accepted ON user_agreements(accepted_at);",
+    
     """
     CREATE TABLE IF NOT EXISTS lottery_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

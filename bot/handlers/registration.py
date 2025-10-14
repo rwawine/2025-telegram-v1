@@ -51,6 +51,8 @@ class RegistrationHandler:
         # Entry points and main actions
         self.router.message.register(self.start_registration, F.text.contains("регистрац"))
         self.router.message.register(self.start_registration, F.text == "🚀 Начать регистрацию")
+        
+        # Agreement handlers REMOVED - теперь в global_commands.py
         # REMOVED: handle_status (теперь в common.py)
         # REMOVED: back_to_menu с "Главное меню" (теперь в global_commands.py)
 
@@ -172,7 +174,7 @@ class RegistrationHandler:
             )
             return
         
-        # Красивое приветственное сообщение для начала регистрации
+        # Начинаем регистрацию с ввода имени
         await message.answer(
             "🎯 Шаг 1 из 4: Ваше имя\n\n"
             "📝 Введите только ваше имя как в документе\n\n"

@@ -82,6 +82,26 @@ class ParticipantRepository(BaseRepository):
             f"WHERE id IN ({placeholders}) AND telegram_id IS NOT NULL",
             tuple(participant_ids)
         )
+    
+    @staticmethod
+    async def check_agreement_accepted(telegram_id: int) -> bool:
+        """Check if user has accepted the agreement."""
+        result = await BaseRepository.fetch_value(
+            "SELECT telegram_id FROM user_agreements WHERE telegram_id=?",
+            (telegram_id,)
+        )
+        # Если запись найдена, пользователь принял соглашение
+        return result is not None
+    
+    @staticmethod
+    async def set_agreement_accepted(telegram_id: int) -> None:
+        """Mark that user has accepted the agreement."""
+        await BaseRepository.execute(
+            """INSERT OR IGNORE INTO user_agreements (telegram_id, accepted_at)
+               VALUES (?, CURRENT_TIMESTAMP)
+            """,
+            (telegram_id,)
+        )
 
 
 class BroadcastRepository(BaseRepository):
@@ -219,3 +239,13 @@ async def mark_broadcast_failed(job_id: int, telegram_id: int) -> None:
 async def get_job_recipient_telegram_ids(job_id: int) -> List[int]:
     """Legacy: Get job recipients."""
     return await BroadcastRepository.get_pending_recipients(job_id)
+
+
+async def check_user_agreement(telegram_id: int) -> bool:
+    """Check if user has accepted the agreement."""
+    return await ParticipantRepository.check_agreement_accepted(telegram_id)
+
+
+async def save_user_agreement(telegram_id: int) -> None:
+    """Save that user has accepted the agreement."""
+    return await ParticipantRepository.set_agreement_accepted(telegram_id)

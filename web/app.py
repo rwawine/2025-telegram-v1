@@ -73,6 +73,14 @@ def _setup_routes(app: Flask) -> None:
         data = generate_latest()
         return data, 200, {'Content-Type': CONTENT_TYPE_LATEST}
     
+    @app.route('/uploads/<path:filename>')
+    def uploaded_file(filename):
+        """Serve uploaded files (photos, etc)."""
+        from flask import send_from_directory
+        import os
+        uploads_dir = os.path.join(app.root_path, '..', 'uploads')
+        return send_from_directory(uploads_dir, filename)
+    
     # Expose helper to Jinja: check if endpoint exists
     def has_endpoint(name: str) -> bool:
         return name in app.view_functions

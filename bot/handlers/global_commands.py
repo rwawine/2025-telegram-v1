@@ -30,6 +30,14 @@ class GlobalCommandsHandler:
         self.router.message.register(self.handle_help, Command("help"))
         self.router.message.register(self.handle_menu, Command("menu"))
         
+        # Обработчики соглашения на обработку персональных данных
+        from bot.states import RegistrationStates
+        self.router.message.register(self.handle_agreement_accept, RegistrationStates.accept_agreement, F.text == "✅ Согласен, принимаю")
+        self.router.message.register(self.handle_agreement_decline, RegistrationStates.accept_agreement, F.text == "❌ Не согласен, не принимаю")
+        
+        # Блокировка всех действий для тех, кто отказался от соглашения
+        self.router.message.register(self.block_declined_user, RegistrationStates.declined_agreement)
+        
         # Экстренная навигация - работает везде
         self.router.message.register(self.emergency_menu, F.text == "🆘 МЕНЮ")
         self.router.message.register(self.emergency_cancel, F.text == "❌ ОТМЕНА")
@@ -41,8 +49,15 @@ class GlobalCommandsHandler:
         self.router.message.register(self.back_to_menu, F.text == "🏠 Главное меню")
     
     async def handle_start(self, message: types.Message, state: FSMContext) -> None:
-        """Команда /start - сбрасывает состояние и показывает меню"""
-        # КРИТИЧЕСКИ ВАЖНО: сбрасываем любое FSM состояние
+        """Команда /start - сбрасывает состояние и показывает соглашение или меню"""
+        from database.repositories import get_participant_status, check_user_agreement
+        from bot.messages import smart_messages
+        from bot.states import RegistrationStates
+        
+        # Проверяем текущее состояние
+        current_state = await state.get_state()
+        
+        # Очищаем состояние
         await state.clear()
         
         context_manager = get_context_manager()
@@ -53,22 +68,69 @@ class GlobalCommandsHandler:
                 UserAction.BUTTON_CLICK
             )
         
-        from database.repositories import get_participant_status
-        from bot.messages import smart_messages
-        
         # Проверяем статус регистрации пользователя
         registration_status = await get_participant_status(message.from_user.id)
         is_registered = registration_status is not None
         
-        # Получаем умное приветственное сообщение
-        welcome_msg = smart_messages.get_welcome_message(is_registered)
+        # Проверяем, принял ли пользователь соглашение ранее
+        agreement_accepted = await check_user_agreement(message.from_user.id)
         
-        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
-        await message.answer(
-            f"🔄 **Перезапуск бота**\n\n{welcome_msg['text']}", 
-            reply_markup=keyboard, 
-            parse_mode="Markdown"
-        )
+        # DEBUG: Логируем для отладки
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"User {message.from_user.id}: is_registered={is_registered}, agreement_accepted={agreement_accepted}")
+        
+        # Если пользователь уже зарегистрирован ИЛИ ранее принял соглашение - показываем приветствие и меню
+        if is_registered or agreement_accepted:
+            # Показываем соответствующее приветствие
+            welcome_msg = smart_messages.get_welcome_message(is_registered=is_registered)
+            keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+            await message.answer(
+                f"🔄 **Перезапуск бота**\n\n{welcome_msg['text']}", 
+                reply_markup=keyboard, 
+                parse_mode="Markdown"
+            )
+        else:
+            # Новый пользователь или пользователь, который отказался ранее - показываем соглашение
+            from aiogram.types import FSInputFile, ReplyKeyboardMarkup, KeyboardButton
+            
+            agreement_text = (
+                "✨ **Добро пожаловать в розыгрыш призов!**\n\n"
+                "📋 **Соглашение на обработку персональных данных**\n\n"
+                "Принимая участие в розыгрыше, ты подтверждаешь что:\n\n"
+                "✅ Ты согласен на обработку твоих персональных данных\n"
+                "✅ Ты принимаешь правила акции\n\n"
+                "📄 Документ с полными условиями прикреплен ниже"
+            )
+            
+            # Клавиатура с кнопками согласия
+            agreement_keyboard = ReplyKeyboardMarkup(
+                keyboard=[
+                    [KeyboardButton(text="✅ Согласен, принимаю")],
+                    [KeyboardButton(text="❌ Не согласен, не принимаю")]
+                ],
+                resize_keyboard=True
+            )
+            
+            # Отправляем PDF документ
+            pdf_path = "1_6_согласие_на_обработку_персональных_данных.pdf"
+            try:
+                document = FSInputFile(pdf_path)
+                await message.answer_document(
+                    document=document,
+                    caption=agreement_text,
+                    parse_mode="Markdown",
+                    reply_markup=agreement_keyboard
+                )
+            except Exception as e:
+                # Если файл не найден, отправляем текст без документа
+                await message.answer(
+                    agreement_text,
+                    parse_mode="Markdown",
+                    reply_markup=agreement_keyboard
+                )
+            
+            await state.set_state(RegistrationStates.accept_agreement)
     
     async def handle_cancel(self, message: types.Message, state: FSMContext) -> None:
         """Команда /cancel - отменяет текущее действие"""
@@ -167,6 +229,91 @@ class GlobalCommandsHandler:
             "🏠 **Главное меню**\n\n"
             "Вы вернулись в главное меню. Все незавершенные действия отменены.",
             reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+    
+    async def handle_agreement_accept(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик согласия на обработку персональных данных"""
+        await state.clear()
+        
+        from bot.messages import smart_messages
+        from database.repositories import save_user_agreement
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"User {message.from_user.id} accepted agreement, saving to DB...")
+        
+        # Сохраняем согласие в БД
+        await save_user_agreement(message.from_user.id)
+        
+        logger.info(f"User {message.from_user.id} agreement saved successfully")
+        
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id,
+                UserContext.NAVIGATION,
+                UserAction.BUTTON_CLICK
+            )
+        
+        # Показываем приветственное сообщение и главное меню
+        welcome_msg = smart_messages.get_welcome_message(is_registered=False)
+        
+        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+        await message.answer(
+            f"✅ **Благодарим за согласие!**\n\n{welcome_msg['text']}", 
+            reply_markup=keyboard, 
+            parse_mode="Markdown"
+        )
+    
+    async def handle_agreement_decline(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик отказа от соглашения"""
+        from bot.states import RegistrationStates
+        from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+        
+        # Устанавливаем состояние "отказался от соглашения"
+        await state.set_state(RegistrationStates.declined_agreement)
+        
+        # Креативное сообщение об отказе
+        creative_messages = [
+            "🌟 **Мы всегда будем вас ждать!**\n\n"
+            "Двери нашего розыгрыша открыты для вас в любое время.\n"
+            "Как только будете готовы — мы с радостью вас встретим! 🎉\n\n"
+            "Для участия в розыгрыше необходимо принять соглашение.\n"
+            "Нажмите /start когда будете готовы.",
+            
+            "💫 **Без проблем!**\n\n"
+            "Наше приглашение остается в силе.\n"
+            "Когда захотите присоединиться — мы будем здесь! 🚪✨\n\n"
+            "Для участия в розыгрыше необходимо принять соглашение.\n"
+            "Нажмите /start когда будете готовы.",
+            
+            "🎭 **Решение за вами!**\n\n"
+            "Байкал подождёт, а мы будем рады видеть вас снова.\n"
+            "Приходите, когда будете готовы к приключениям! 🏔️\n\n"
+            "Для участия в розыгрыше необходимо принять соглашение.\n"
+            "Нажмите /start когда будете готовы."
+        ]
+        
+        import random
+        selected_message = random.choice(creative_messages)
+        
+        # Убираем клавиатуру - пользователь должен нажать /start
+        from aiogram.types import ReplyKeyboardRemove
+        await message.answer(
+            selected_message,
+            reply_markup=ReplyKeyboardRemove(),
+            parse_mode="Markdown"
+        )
+    
+    async def block_declined_user(self, message: types.Message, state: FSMContext) -> None:
+        """Блокировка всех действий для пользователя, отказавшегося от соглашения"""
+        from aiogram.types import ReplyKeyboardRemove
+        
+        await message.answer(
+            "⚠️ Для использования бота необходимо принять соглашение на обработку персональных данных.\n\n"
+            "Нажмите /start чтобы ознакомиться с соглашением.",
+            reply_markup=ReplyKeyboardRemove(),
             parse_mode="Markdown"
         )
 
