@@ -91,7 +91,10 @@
         <div class="card-header lottery-header">
             <div style="flex: 1;">
                 <h2 class="lottery-title">Текущий розыгрыш</h2>
-                <span class="status-badge status-approved">Выбран: {% if selected_run %}#{{ selected_run }}{% else %}{% if runs %}#{{ runs[0].id }}{% else %}-{% endif %}{% endif %}</span>
+                <div>
+                    <span class="status-badge status-approved">Выбран розыгрыш: {% if selected_run %}#{{ selected_run }}{% else %}{% if runs %}#{{ runs[0].id }}{% else %}-{% endif %}{% endif %}</span>
+                    <span class="status-badge" style="background: #2196F3; margin-left: 8px;">Победителей: {{ winners|length }}</span>
+                </div>
             </div>
             <i class="fas fa-trophy fa-2x" style="color: var(--color-approved);"></i>
         </div>
