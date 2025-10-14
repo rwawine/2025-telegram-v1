@@ -33,11 +33,21 @@
                         <td>{{ p.registration_date|moscow_time }}</td>
                         <td>
                             {% if p.photo_path %}
-                            <a href="#" data-bs-toggle="modal" data-bs-target="#photoModal-{{ p.id }}" title="Просмотр фото">
-                                <span class="status-badge status-approved" style="font-size: 11px;">Есть</span>
-                            </a>
+                                <div class="d-flex align-items-center">
+                                    {% set photo_basename = p.photo_path.split('/')[-1].split('\\')[-1] %}
+                                    <img src="{{ url_for('admin.serve_upload', filename=photo_basename) }}" 
+                                         alt="Фото" 
+                                         class="photo-preview me-2" 
+                                         style="width: 32px; height: 32px; object-fit: cover; border-radius: 4px; cursor: pointer;"
+                                         data-bs-toggle="modal" 
+                                         data-bs-target="#photoModal"
+                                         data-photo-src="{{ url_for('admin.serve_upload', filename=photo_basename) }}"
+                                         data-participant-name="{{ p.full_name or ('ID ' ~ p.id) }}"
+                                         onclick="showPhotoModal(this)">
+                                    <span class="status-badge status-approved" style="font-size: 11px;">Есть</span>
+                                </div>
                             {% else %}
-                            <span class="status-badge status-archived" style="font-size: 11px;">Нет</span>
+                                <span class="status-badge status-archived" style="font-size: 11px;">Нет</span>
                             {% endif %}
                         </td>
                         <td>
@@ -67,21 +77,25 @@
         </div>
     </div>
 </div>
-{% for p in participants %}
-<div class="modal fade" id="photoModal-{{ p.id }}" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
+<!-- Photo Modal -->
+<div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Фото: {{ p.full_name }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="photoModalLabel">Фото участника</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body text-center">
-                <img src="{{ url_for('admin.serve_upload', filename=p.photo_path.split('/')[-1] if p.photo_path else '') }}" class="img-fluid rounded" alt="Фото">
+                <img id="modalPhotoImg" src="" alt="Фото участника" class="img-fluid rounded shadow" style="max-height: 70vh; max-width: 100%;">
+                <div class="mt-3">
+                    <button type="button" class="btn btn-outline-primary" onclick="openPhotoInNewTab()">
+                        <i class="fas fa-external-link-alt me-1"></i>Открыть в полном размере
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
-{% endfor %}
 {% endblock %}
 
 {% block scripts %}
@@ -89,6 +103,33 @@
 document.addEventListener('DOMContentLoaded', function(){
     // no-op, modal wiring is global in base
 });
+
+// Photo modal function
+window.showPhotoModal = function(img) {
+    const modalImg = document.getElementById('modalPhotoImg');
+    const modalTitle = document.getElementById('photoModalLabel');
+    const participantName = img.getAttribute('data-participant-name') || 'Участник';
+    const photoSrc = img.getAttribute('data-photo-src') || img.src;
+    
+    if (modalImg && img) {
+        modalImg.src = photoSrc;
+        modalImg.alt = `Фото ${participantName}`;
+        // Store photo src for opening in new tab
+        modalImg.setAttribute('data-full-src', photoSrc);
+    }
+    
+    if (modalTitle) {
+        modalTitle.textContent = `Фото участника: ${participantName}`;
+    }
+};
+
+// Open photo in new tab
+window.openPhotoInNewTab = function() {
+    const modalImg = document.getElementById('modalPhotoImg');
+    if (modalImg && modalImg.getAttribute('data-full-src')) {
+        window.open(modalImg.getAttribute('data-full-src'), '_blank');
+    }
+};
 </script>
 {% endblock %}
 
