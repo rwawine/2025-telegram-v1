@@ -157,7 +157,7 @@ class AdminDatabase:
     def list_lottery_runs(self, limit: int = 20) -> List[sqlite3.Row]:
         with self._connect() as conn:
             return conn.execute(
-                "SELECT id, seed, executed_at, winners_count FROM lottery_runs ORDER BY executed_at DESC LIMIT ?",
+                "SELECT id, seed, executed_at, winners_count FROM lottery_runs ORDER BY executed_at ASC LIMIT ?",
                 (limit,),
             ).fetchall()
 

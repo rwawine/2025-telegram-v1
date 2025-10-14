@@ -90,7 +90,7 @@
                         {% for log in logs %}
                         <tr class="{% if log.is_suspicious %}table-warning{% endif %}">
                             <td>
-                                <small>{{ log.created_at }}</small>
+                                <small>{{ log.created_at|moscow_time }}</small>
                             </td>
                             <td>
                                 <strong>{{ log.admin_username }}</strong>

@@ -120,7 +120,7 @@
                                 <span style="color: var(--color-primary);">{{ p.telegram_id }}</span>
                             </div>
                         </td>
-                        <td>{{ p.registration_date or p.created_at }}</td>
+                        <td>{{ (p.registration_date or p.created_at)|moscow_time }}</td>
                         <td>
                             <span class="status-badge status-{{ p.status }}">
                                 {% if p.status == 'pending' %}Ожидает

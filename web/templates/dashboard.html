@@ -186,7 +186,7 @@
                     <p class="ticket-description">{{ ticket.message or ticket.description or '—' }}</p>
                     <div class="ticket-meta">
                         <span><i class="fas fa-user"></i> {{ ticket.participant_name or 'Пользователь' }}</span>
-                        <span><i class="fas fa-clock"></i> {{ ticket.created_at or '' }}</span>
+                        <span><i class="fas fa-clock"></i> {{ ticket.created_at|moscow_time or '' }}</span>
                     </div>
                     <div class="ticket-actions">
                         <a href="{{ url_for('admin.support_ticket_detail', ticket_id=ticket.id) }}" class="btn btn-sm btn-outline">👁️ Подробнее</a>

@@ -121,7 +121,7 @@
                     </p>
                     <div class="ticket-meta">
                         <span><i class="fas fa-user"></i> {{ ticket.user_name or ticket.full_name or 'Неизвестный' }}</span>
-                        <span><i class="fas fa-clock"></i> {{ ticket.created_at or ticket.timestamp or 'Дата неизвестна' }}</span>
+                        <span><i class="fas fa-clock"></i> {{ (ticket.created_at or ticket.timestamp)|moscow_time or 'Дата неизвестна' }}</span>
                         {% if ticket.assigned_to %}
                         <span><i class="fas fa-user-tie"></i> {{ ticket.assigned_to }}</span>
                         {% endif %}
@@ -150,7 +150,7 @@
                         </form>
                     </div>
             {% if ticket.status == 'closed' and ticket.updated_at %}
-            <div class="text-muted small mt-2">Закрыт: {{ ticket.updated_at }}</div>
+            <div class="text-muted small mt-2">Закрыт: {{ ticket.updated_at|moscow_time }}</div>
             {% endif %}
                 </div>
             </div>

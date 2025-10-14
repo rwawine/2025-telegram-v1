@@ -198,7 +198,7 @@
                     <dd class="col-sm-8"><a href="{{ url_for('admin.participant_detail', participant_id=ticket.participant_id) }}">{{ ticket.participant_name }}</a></dd>
                     {% endif %}
                     <dt class="col-sm-4">Создан</dt>
-                    <dd class="col-sm-8">{{ ticket.created_at if ticket.created_at else 'Неизвестно' }}</dd>
+                    <dd class="col-sm-8">{{ ticket.created_at|moscow_time if ticket.created_at else 'Неизвестно' }}</dd>
                     <dt class="col-sm-4">Категория</dt>
                     <dd class="col-sm-8">
                         {% set category_map = {

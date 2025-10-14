@@ -86,6 +86,41 @@ def _setup_routes(app: Flask) -> None:
         return name in app.view_functions
     
     app.jinja_env.globals['has_endpoint'] = has_endpoint
+    
+    # Add Moscow timezone filter for datetime conversion
+    def moscow_time(dt_string: str) -> str:
+        """Convert UTC datetime string to Moscow time (UTC+3)."""
+        if not dt_string:
+            return ''
+        try:
+            from datetime import datetime, timedelta
+            # Try different datetime formats
+            formats = [
+                '%Y-%m-%d %H:%M:%S',  # Standard format
+                '%Y-%m-%d %H:%M:%S.%f',  # With microseconds
+                '%Y-%m-%dT%H:%M:%S',  # ISO format without Z
+                '%Y-%m-%dT%H:%M:%S.%f',  # ISO with microseconds
+                '%Y-%m-%dT%H:%M:%SZ',  # ISO with Z
+            ]
+            dt = None
+            for fmt in formats:
+                try:
+                    dt = datetime.strptime(dt_string, fmt)
+                    break
+                except ValueError:
+                    continue
+            
+            if dt is None:
+                return dt_string
+            
+            # Add 3 hours for Moscow timezone (UTC+3)
+            moscow_dt = dt + timedelta(hours=3)
+            return moscow_dt.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception as e:
+            app.logger.warning(f"Failed to convert time to Moscow: {e}")
+            return dt_string
+    
+    app.jinja_env.filters['moscow_time'] = moscow_time
 
 
 def _setup_context_processors(app: Flask) -> None:

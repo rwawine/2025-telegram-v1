@@ -439,13 +439,7 @@ def lottery():
     db = _get_admin_db()
     runs = db.list_lottery_runs(limit=50)
     selected_run = request.args.get("run_id", type=int)
-    
-    # Debug
-    print(f"🔍 DEBUG Lottery: selected_run={selected_run}, runs_count={len(runs)}")
-    print(f"🔍 DEBUG Lottery: runs IDs = {[r['id'] for r in runs]}")
-    
     winners = db.list_winners(run_id=selected_run or (runs[0]["id"] if runs else None), limit=200)
-    print(f"🔍 DEBUG Lottery: winners_count={len(winners)} for run_id={selected_run or (runs[0]['id'] if runs else None)}")
     
     # Get lottery statistics
     lottery_stats = {

@@ -138,12 +138,12 @@
                         {% for r in runs %}
                         <tr {% if selected_run == r.id %}class="table-active" style="background-color: #e3f2fd;"{% endif %}>
                             <td>#{{ loop.index }}</td>
-                            <td>{{ r.executed_at }}</td>
+                            <td>{{ r.executed_at|moscow_time }}</td>
                             <td>{{ r.winners_count }}</td>
                             <td>
                                 <a class="btn btn-sm btn-outline" href="{{ url_for('admin.lottery', run_id=r.id) }}">Открыть</a>
                                 <a class="btn btn-sm btn-outline" href="{{ url_for('admin.export_winners', run_id=r.id) }}">Экспорт</a>
-                                <button type="button" class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at }}">
+                                <button type="button" class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at|moscow_time }}">
                                     <i class="fas fa-trash"></i> Удалить
                                 </button>
                             </td>
@@ -166,13 +166,6 @@ function notifyWinners() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Debug: проверка кликов на ссылки "Открыть"
-    document.querySelectorAll('a.btn-outline').forEach(link => {
-        link.addEventListener('click', function(e) {
-            console.log('Клик по ссылке:', this.href);
-        });
-    });
-    
     document.querySelectorAll('.delete-lottery-btn').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();

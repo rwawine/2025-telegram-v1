@@ -16,7 +16,7 @@
                 <select name="run_id" class="form-select">
                     <option value="">Все</option>
                     {% for r in runs %}
-                    <option value="{{ r.id }}" {% if selected_run == r.id %}selected{% endif %}>#{{ r.id }} — {{ r.executed_at }}</option>
+                    <option value="{{ r.id }}" {% if selected_run == r.id %}selected{% endif %}>#{{ r.id }} — {{ r.executed_at|moscow_time }}</option>
                     {% endfor %}
                 </select>
             </div>

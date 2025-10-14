@@ -116,7 +116,7 @@
                             }.get(broadcast.status, ('badge-light-secondary', 'fa-question-circle')) %}
                             <span class="badge {{ status_config[0] }}"><i class="fa-solid {{ status_config[1] }} me-1"></i>{{ broadcast.status }}</span>
                         </td>
-                        <td class="text-muted small">{{ broadcast.created_at if broadcast.created_at else 'N/A' }}</td>
+                        <td class="text-muted small">{{ broadcast.created_at|moscow_time if broadcast.created_at else 'N/A' }}</td>
                         <td class="text-center">
                             <div class="btn-group">
                                 <button class="btn btn-sm btn-outline-secondary" @click="viewBroadcast('{{ broadcast.id }}')" title="Посмотреть"><i class="fa-solid fa-eye"></i></button>

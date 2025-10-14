@@ -24,12 +24,12 @@
                     {% for r in runs %}
                     <tr>
                         <td>#{{ loop.index }}</td>
-                        <td>{{ r.executed_at }}</td>
+                        <td>{{ r.executed_at|moscow_time }}</td>
                         <td>{{ r.winners_count }}</td>
                         <td>
                             <a class="btn btn-sm btn-outline" href="{{ url_for('admin.winners_list', run_id=r.id) }}">Победители</a>
                             <a class="btn btn-sm btn-outline" href="{{ url_for('admin.export_winners', run_id=r.id) }}">Экспорт</a>
-                            <button type="button" class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at }}">
+                            <button type="button" class="btn btn-sm btn-danger delete-lottery-btn" data-run-id="{{ r.id }}" data-executed-at="{{ r.executed_at|moscow_time }}">
                                 <i class="fas fa-trash"></i> Удалить
                             </button>
                         </td>
