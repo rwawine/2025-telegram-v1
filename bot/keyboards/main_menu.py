@@ -114,7 +114,9 @@ def get_info_menu_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="✅ Как получить стикеры", callback_data="info_stickers")],
         [InlineKeyboardButton(text="✏️ Как участвовать в розыгрыше", callback_data="info_participate")],
         [InlineKeyboardButton(text="🏆 Призы розыгрыша", callback_data="info_prizes")],
-        [InlineKeyboardButton(text="📅 Сроки проведения", callback_data="info_schedule")]
+        [InlineKeyboardButton(text="📅 Сроки проведения", callback_data="info_schedule")],
+        [InlineKeyboardButton(text="😊 Оплата улыбкой через Сбер ID", callback_data="info_sberpay_id")],
+        [InlineKeyboardButton(text="📱 Оплата улыбкой через приложение", callback_data="info_sberpay_app")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
