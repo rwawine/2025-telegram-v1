@@ -189,3 +189,5 @@ OSError: [Errno 10048] error while attempting to bind on address ('127.0.0.1', 5
 2025-10-14 22:55:55,415 | [32mINFO[0m | app | <module>:36 | Application stopped by user
 2025-10-14 22:57:41,643 | [32mINFO[0m | app | <module>:36 | Application stopped by user
 2025-10-14 23:03:14,018 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-10-15 17:55:51,145 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-10-15 17:59:05,079 | [32mINFO[0m | app | <module>:36 | Application stopped by user

@@ -110,10 +110,11 @@ def get_ticket_actions_keyboard() -> ReplyKeyboardMarkup:
 def get_info_menu_keyboard() -> InlineKeyboardMarkup:
     """Information menu keyboard"""
     keyboard = [
-        [InlineKeyboardButton(text="📋 Правила участия", callback_data="info_rules")],
+        [InlineKeyboardButton(text="🗒 Правила участия в розыгрыше", callback_data="info_rules")],
+        [InlineKeyboardButton(text="✅ Как получить стикеры", callback_data="info_stickers")],
+        [InlineKeyboardButton(text="✏️ Как участвовать в розыгрыше", callback_data="info_participate")],
         [InlineKeyboardButton(text="🏆 Призы розыгрыша", callback_data="info_prizes")],
-        [InlineKeyboardButton(text="📅 Сроки проведения", callback_data="info_schedule")],
-        [InlineKeyboardButton(text="⚖️ Гарантии честности", callback_data="info_fairness")]
+        [InlineKeyboardButton(text="📅 Сроки проведения", callback_data="info_schedule")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
