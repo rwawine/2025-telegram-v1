@@ -113,6 +113,114 @@ def login_page():
     return render_template("login.html")
 
 
+@admin_bp.route("/participants/create", methods=["POST"])
+@login_required
+def create_participant():
+    """Создание нового участника через админ-панель."""
+    try:
+        # Получаем данные из формы
+        telegram_id = request.form.get("telegram_id", type=int)
+        username = request.form.get("username", "").strip() or None
+        full_name = request.form.get("full_name", "").strip()
+        phone_number = request.form.get("phone_number", "").strip()
+        loyalty_card = request.form.get("loyalty_card", "").strip()
+        status = request.form.get("status", "pending")
+        admin_notes = request.form.get("admin_notes", "").strip() or None
+        
+        # Валидация обязательных полей
+        if not full_name:
+            flash("Имя участника обязательно", "error")
+            return redirect(url_for("admin.participants"))
+        
+        if not phone_number:
+            flash("Номер телефона обязателен", "error")
+            return redirect(url_for("admin.participants"))
+        
+        if not loyalty_card:
+            flash("Номер карты лояльности обязателен", "error")
+            return redirect(url_for("admin.participants"))
+        
+        # Валидация номера карты (13 или 16 цифр)
+        from utils.validators import validate_loyalty_card
+        if not validate_loyalty_card(loyalty_card):
+            flash("Номер карты должен содержать 13 или 16 цифр", "error")
+            return redirect(url_for("admin.participants"))
+        
+        # Валидация телефона
+        from utils.validators import validate_phone, normalize_phone
+        if not validate_phone(phone_number):
+            flash("Некорректный номер телефона", "error")
+            return redirect(url_for("admin.participants"))
+        phone_number = normalize_phone(phone_number)
+        
+        # Обработка загруженного файла лифлета
+        photo_path = None
+        if 'photo_file' in request.files:
+            photo_file = request.files['photo_file']
+            if photo_file and photo_file.filename:
+                # Проверяем расширение
+                allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif'}
+                file_ext = os.path.splitext(photo_file.filename)[1].lower()
+                if file_ext not in allowed_extensions:
+                    flash("Недопустимый формат файла. Разрешены: JPG, PNG, GIF", "error")
+                    return redirect(url_for("admin.participants"))
+                
+                # Сохраняем файл
+                import uuid
+                unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+                upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+                os.makedirs(upload_folder, exist_ok=True)
+                photo_path = os.path.join(upload_folder, unique_filename)
+                photo_file.save(photo_path)
+        
+        # Если telegram_id не указан, генерируем временный отрицательный ID
+        if not telegram_id:
+            # Используем отрицательный ID для участников без Telegram
+            with _get_admin_db()._connect() as conn:
+                result = conn.execute("SELECT MIN(telegram_id) FROM participants WHERE telegram_id < 0").fetchone()
+                telegram_id = (result[0] or 0) - 1
+        
+        # Создаем участника
+        db = _get_admin_db()
+        participant_id = db.create_participant(
+            telegram_id=telegram_id,
+            username=username,
+            full_name=full_name,
+            phone_number=phone_number,
+            loyalty_card=loyalty_card,
+            photo_path=photo_path,
+            status=status,
+            admin_notes=admin_notes
+        )
+        
+        # Логируем в audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="CREATE_PARTICIPANT",
+                entity_type="participant",
+                entity_id=participant_id,
+                new_value=json.dumps({
+                    "full_name": full_name,
+                    "phone_number": phone_number,
+                    "loyalty_card": loyalty_card,
+                    "status": status
+                }, ensure_ascii=False),
+                reason=f"Создание участника через админ-панель",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
+        
+        flash(f"Участник '{full_name}' успешно создан (ID: {participant_id})", "success")
+    except Exception as e:
+        current_app.logger.exception("Ошибка создания участника")
+        flash(f"Не удалось создать участника: {e}", "error")
+    
+    return redirect(url_for("admin.participants"))
+
+
 @admin_bp.route("/participants")
 @login_required
 def participants():
@@ -778,6 +886,183 @@ def save_settings():
         app.logger.exception("Ошибка сохранения настроек")
         flash(f"Не удалось сохранить: {e}", "error")
     return redirect(url_for('admin.settings'))
+
+
+@admin_bp.route("/analytics/export")
+@login_required
+def export_analytics_base():
+    """Экспорт базового отчета в Excel."""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        from io import BytesIO
+        from datetime import datetime
+        
+        db = _get_admin_db()
+        stats = db.get_statistics()
+        
+        # Создаем workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Обзор"
+        
+        # Стили
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=12)
+        title_font = Font(bold=True, size=14)
+        border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Лист "Обзор"
+        ws['A1'] = "Базовый отчет по системе"
+        ws['A1'].font = title_font
+        ws.merge_cells('A1:D1')
+        
+        ws['A3'] = "Метрика"
+        ws['B3'] = "Значение"
+        ws['A3'].fill = header_fill
+        ws['B3'].fill = header_fill
+        ws['A3'].font = header_font
+        ws['B3'].font = header_font
+        ws['A3'].border = border
+        ws['B3'].border = border
+        
+        overview_data = [
+            ("Всего участников", stats.get("total_participants", 0)),
+            ("Одобрено", stats.get("approved_participants", 0)),
+            ("Ожидают проверки", stats.get("pending_participants", 0)),
+            ("Отклонено", stats.get("rejected_participants", 0)),
+            ("Открытых тикетов", stats.get("open_tickets", 0)),
+            ("Всего победителей", stats.get("total_winners", 0)),
+        ]
+        
+        row = 4
+        for metric, value in overview_data:
+            ws[f'A{row}'] = metric
+            ws[f'B{row}'] = value
+            ws[f'A{row}'].border = border
+            ws[f'B{row}'].border = border
+            row += 1
+        
+        # Настройка ширины колонок
+        ws.column_dimensions['A'].width = 25
+        ws.column_dimensions['B'].width = 15
+        
+        # Лист "Участники по датам"
+        ws2 = wb.create_sheet("Участники")
+        ws2['A1'] = "Дата"
+        ws2['B1'] = "Всего"
+        ws2['C1'] = "Одобрено"
+        ws2['D1'] = "Ожидают"
+        ws2['E1'] = "Отклонено"
+        
+        for col in ['A', 'B', 'C', 'D', 'E']:
+            ws2[f'{col}1'].fill = header_fill
+            ws2[f'{col}1'].font = header_font
+            ws2[f'{col}1'].border = border
+        
+        # Получаем данные по датам
+        with db._connect() as conn:
+            rows = conn.execute("""
+                SELECT 
+                    DATE(registration_date) as reg_date,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                FROM participants
+                GROUP BY DATE(registration_date)
+                ORDER BY reg_date DESC
+            """).fetchall()
+        
+        row = 2
+        for r in rows:
+            ws2[f'A{row}'] = r[0]
+            ws2[f'B{row}'] = r[1]
+            ws2[f'C{row}'] = r[2]
+            ws2[f'D{row}'] = r[3]
+            ws2[f'E{row}'] = r[4]
+            for col in ['A', 'B', 'C', 'D', 'E']:
+                ws2[f'{col}{row}'].border = border
+            row += 1
+        
+        # Настройка ширины колонок
+        for col in ['A', 'B', 'C', 'D', 'E']:
+            ws2.column_dimensions[col].width = 15
+        
+        # Лист "Тикеты"
+        ws3 = wb.create_sheet("Тикеты")
+        ws3['A1'] = "Дата"
+        ws3['B1'] = "Открыто"
+        ws3['C1'] = "В работе"
+        ws3['D1'] = "Закрыто"
+        
+        for col in ['A', 'B', 'C', 'D']:
+            ws3[f'{col}1'].fill = header_fill
+            ws3[f'{col}1'].font = header_font
+            ws3[f'{col}1'].border = border
+        
+        with db._connect() as conn:
+            rows = conn.execute("""
+                SELECT 
+                    DATE(created_at) as ticket_date,
+                    SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_count,
+                    SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count,
+                    SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_count
+                FROM support_tickets
+                GROUP BY DATE(created_at)
+                ORDER BY ticket_date DESC
+            """).fetchall()
+        
+        row = 2
+        for r in rows:
+            ws3[f'A{row}'] = r[0]
+            ws3[f'B{row}'] = r[1]
+            ws3[f'C{row}'] = r[2]
+            ws3[f'D{row}'] = r[3]
+            for col in ['A', 'B', 'C', 'D']:
+                ws3[f'{col}{row}'].border = border
+            row += 1
+        
+        for col in ['A', 'B', 'C', 'D']:
+            ws3.column_dimensions[col].width = 15
+        
+        # Сохраняем в BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Логируем в audit
+        try:
+            _run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="EXPORT_ANALYTICS_BASE",
+                entity_type="analytics",
+                entity_id=0,
+                new_value="Экспорт базового отчета в Excel",
+                reason="Экспорт базовой аналитики",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
+        
+        from flask import Response
+        filename = f"analytics_base_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return Response(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+    except Exception as e:
+        current_app.logger.exception("Ошибка экспорта базового отчета")
+        flash(f"Ошибка экспорта: {e}", "error")
+        return redirect(url_for("admin.analytics"))
 
 
 @admin_bp.route("/analytics")

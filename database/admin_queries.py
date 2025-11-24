@@ -494,4 +494,28 @@ class AdminDatabase:
                 """,
                 (limit,),
             ).fetchall()
+    
+    def create_participant(
+        self,
+        telegram_id: int,
+        username: Optional[str],
+        full_name: str,
+        phone_number: str,
+        loyalty_card: str,
+        photo_path: Optional[str] = None,
+        status: str = "pending",
+        admin_notes: Optional[str] = None
+    ) -> int:
+        """Создать нового участника через админ-панель."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO participants 
+                (telegram_id, username, full_name, phone_number, loyalty_card, photo_path, status, admin_notes, registration_date, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+3 hours'), datetime('now', '+3 hours'))
+                """,
+                (telegram_id, username, full_name, phone_number, loyalty_card, photo_path, status, admin_notes)
+            )
+            conn.commit()
+            return cursor.lastrowid
 

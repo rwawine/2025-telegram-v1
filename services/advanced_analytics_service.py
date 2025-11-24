@@ -1,6 +1,6 @@
 """Сервис расширенной аналитики с метриками для визуализации."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
@@ -498,37 +498,236 @@ class AdvancedAnalyticsService:
             "timestamp": now.isoformat()
         }
     
+    async def get_history_window(self) -> Tuple[Optional[datetime], Optional[datetime]]:
+        """Получить минимальную и максимальную дату регистрации для определения полного периода."""
+        pool = get_db_pool()
+        async with pool.connection() as conn:
+            cursor = await conn.execute(
+                "SELECT MIN(registration_date), MAX(registration_date) FROM participants"
+            )
+            row = await cursor.fetchone()
+            min_date = row[0]
+            max_date = row[1]
+            return min_date, max_date
+    
     async def export_analytics_report(
         self,
-        format: str = "json",
+        format: str = "xlsx",
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None
-    ) -> Dict:
+    ):
         """
         Экспортирует полный аналитический отчет.
         
         Args:
-            format: Формат экспорта (json, csv, excel)
-            start_date: Начальная дата
-            end_date: Конечная дата
+            format: Формат экспорта (json, xlsx)
+            start_date: Начальная дата (если None, берется минимальная дата из БД)
+            end_date: Конечная дата (если None, берется максимальная дата из БД)
             
         Returns:
-            Полный отчет со всеми метриками
+            Полный отчет со всеми метриками (Dict для JSON, BytesIO для XLSX)
         """
-        if not start_date:
-            start_date = datetime.now() - timedelta(days=30)
-        if not end_date:
-            end_date = datetime.now()
+        # Если даты не указаны, получаем полный период из БД
+        if not start_date or not end_date:
+            min_date, max_date = await self.get_history_window()
+            if not start_date:
+                start_date = min_date or (datetime.now() - timedelta(days=30))
+            if not end_date:
+                end_date = max_date or datetime.now()
         
-        # Собираем все метрики
-        conversion = await self.get_conversion_metrics(30)
-        retention = await self.get_retention_metrics(30)
+        # Вычисляем количество дней для метрик
+        period_days = (end_date - start_date).days
+        if period_days <= 0:
+            period_days = 30
+        
+        # Собираем все метрики за весь период
+        conversion = await self.get_conversion_metrics(period_days)
+        retention = await self.get_retention_metrics(period_days)
         funnel = await self.get_conversion_funnel(start_date, end_date)
-        time_series_reg = await self.get_time_series("registrations", MetricPeriod.DAILY, 30)
-        heatmap = await self.get_activity_heatmap(30)
+        time_series_reg = await self.get_time_series("registrations", MetricPeriod.DAILY, period_days)
+        heatmap = await self.get_activity_heatmap(period_days)
         cohorts = await self.get_cohort_analysis()
         real_time = await self.get_real_time_stats()
         
+        if format == "xlsx":
+            # Экспорт в Excel
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.formatting.rule import ColorScaleRule
+            from openpyxl.utils import get_column_letter
+            from io import BytesIO
+            
+            wb = Workbook()
+            
+            # Стили
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=12)
+            title_font = Font(bold=True, size=14)
+            border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+            
+            # Лист "Summary"
+            ws = wb.active
+            ws.title = "Сводка"
+            ws['A1'] = "Расширенный аналитический отчет"
+            ws['A1'].font = title_font
+            ws.merge_cells('A1:B1')
+            
+            ws['A3'] = "Период"
+            ws['B3'] = f"{start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}"
+            ws['A3'].font = Font(bold=True)
+            ws['B3'].font = Font(bold=True)
+            
+            row = 5
+            ws[f'A{row}'] = "Метрика"
+            ws[f'B{row}'] = "Значение"
+            ws[f'A{row}'].fill = header_fill
+            ws[f'B{row}'].fill = header_fill
+            ws[f'A{row}'].font = header_font
+            ws[f'B{row}'].font = header_font
+            
+            summary_data = [
+                ("Всего регистраций", conversion.total_registrations),
+                ("Одобрено", conversion.approved),
+                ("Отклонено", conversion.rejected),
+                ("На модерации", conversion.pending),
+                ("Conversion Rate", f"{conversion.conversion_rate}%"),
+                ("Approval Rate", f"{conversion.approval_rate}%"),
+                ("Rejection Rate", f"{conversion.rejection_rate}%"),
+                ("Всего пользователей", retention.total_users),
+                ("Новые пользователи", retention.new_users),
+                ("Вернувшиеся", retention.returning_users),
+                ("Retention Rate", f"{retention.retention_rate}%"),
+                ("Churn Rate", f"{retention.churn_rate}%"),
+            ]
+            
+            row = 6
+            for metric, value in summary_data:
+                ws[f'A{row}'] = metric
+                ws[f'B{row}'] = value
+                row += 1
+            
+            ws.column_dimensions['A'].width = 25
+            ws.column_dimensions['B'].width = 20
+            
+            # Лист "Воронка"
+            ws2 = wb.create_sheet("Воронка")
+            ws2['A1'] = "Этап"
+            ws2['B1'] = "Количество"
+            ws2['C1'] = "Процент"
+            ws2['D1'] = "Отсев"
+            
+            for col in ['A', 'B', 'C', 'D']:
+                ws2[f'{col}1'].fill = header_fill
+                ws2[f'{col}1'].font = header_font
+                ws2[f'{col}1'].border = border
+            
+            row = 2
+            for stage in funnel.get("stages", []):
+                ws2[f'A{row}'] = stage.get("stage", "")
+                ws2[f'B{row}'] = stage.get("count", 0)
+                ws2[f'C{row}'] = f"{stage.get('percentage', 0)}%"
+                ws2[f'D{row}'] = f"{stage.get('drop_off', 0)}%"
+                for col in ['A', 'B', 'C', 'D']:
+                    ws2[f'{col}{row}'].border = border
+                row += 1
+            
+            for col in ['A', 'B', 'C', 'D']:
+                ws2.column_dimensions[col].width = 20
+            
+            # Лист "Временной ряд"
+            ws3 = wb.create_sheet("Временной ряд")
+            ws3['A1'] = "Дата"
+            ws3['B1'] = "Регистрации"
+            
+            for col in ['A', 'B']:
+                ws3[f'{col}1'].fill = header_fill
+                ws3[f'{col}1'].font = header_font
+                ws3[f'{col}1'].border = border
+            
+            row = 2
+            for point in time_series_reg:
+                ws3[f'A{row}'] = point.label
+                ws3[f'B{row}'] = point.value
+                for col in ['A', 'B']:
+                    ws3[f'{col}{row}'].border = border
+                row += 1
+            
+            ws3.column_dimensions['A'].width = 20
+            ws3.column_dimensions['B'].width = 15
+            
+            # Лист "Тепловая карта"
+            ws4 = wb.create_sheet("Тепловая карта")
+            ws4['A1'] = "День"
+            for hour in range(0, 24, 3):
+                col_letter = get_column_letter(2 + hour // 3)
+                ws4[f'{col_letter}1'] = f"{hour:02d}:00"
+                ws4[f'{col_letter}1'].fill = header_fill
+                ws4[f'{col_letter}1'].font = header_font
+                ws4[f'{col_letter}1'].border = border
+            
+            ws4['A1'].fill = header_fill
+            ws4['A1'].font = header_font
+            ws4['A1'].border = border
+            
+            days_order = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+            row = 2
+            for day_name in days_order:
+                if day_name in heatmap:
+                    ws4[f'A{row}'] = day_name
+                    ws4[f'A{row}'].border = border
+                    col_idx = 2
+                    for hour in range(0, 24, 3):
+                        col_letter = get_column_letter(col_idx)
+                        count = heatmap[day_name].get(hour, 0)
+                        ws4[f'{col_letter}{row}'] = count
+                        ws4[f'{col_letter}{row}'].border = border
+                        col_idx += 1
+                    row += 1
+            
+            ws4.column_dimensions['A'].width = 15
+            for hour in range(0, 24, 3):
+                col_letter = get_column_letter(2 + hour // 3)
+                ws4.column_dimensions[col_letter].width = 12
+            
+            # Лист "Когорты"
+            ws5 = wb.create_sheet("Когорты")
+            ws5['A1'] = "Когорта"
+            ws5['B1'] = "Размер"
+            ws5['C1'] = "Одобрено"
+            ws5['D1'] = "Отклонено"
+            ws5['E1'] = "Approval Rate"
+            
+            for col in ['A', 'B', 'C', 'D', 'E']:
+                ws5[f'{col}1'].fill = header_fill
+                ws5[f'{col}1'].font = header_font
+                ws5[f'{col}1'].border = border
+            
+            row = 2
+            for cohort in cohorts:
+                ws5[f'A{row}'] = cohort.get("cohort", "")
+                ws5[f'B{row}'] = cohort.get("size", 0)
+                ws5[f'C{row}'] = cohort.get("approved", 0)
+                ws5[f'D{row}'] = cohort.get("rejected", 0)
+                ws5[f'E{row}'] = f"{cohort.get('approval_rate', 0)}%"
+                for col in ['A', 'B', 'C', 'D', 'E']:
+                    ws5[f'{col}{row}'].border = border
+                row += 1
+            
+            for col in ['A', 'B', 'C', 'D', 'E']:
+                ws5.column_dimensions[col].width = 18
+            
+            # Сохраняем в BytesIO
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
+            return output
+        
+        # JSON формат (для обратной совместимости)
         report = {
             "generated_at": datetime.now().isoformat(),
             "period": {

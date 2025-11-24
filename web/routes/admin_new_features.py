@@ -457,14 +457,46 @@ def api_realtime_stats():
 @login_required
 def export_analytics_report():
     """Экспорт полного аналитического отчета."""
-    report = run_async(advanced_analytics_service.export_analytics_report(format="json"))
+    format_type = request.args.get('format', 'xlsx')
     
-    from flask import Response
-    return Response(
-        json.dumps(report, indent=2, ensure_ascii=False),
-        mimetype='application/json',
-        headers={
-            'Content-Disposition': 'attachment; filename=analytics_report.json'
-        }
-    )
+    if format_type == 'xlsx':
+        # Экспорт в Excel
+        output = run_async(advanced_analytics_service.export_analytics_report(format="xlsx"))
+        
+        from flask import Response
+        from datetime import datetime
+        filename = f"analytics_advanced_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        # Логируем в audit
+        try:
+            run_async(AuditService.log_action(
+                admin_username=current_user.username,
+                action_type="EXPORT_ANALYTICS_ADVANCED",
+                entity_type="analytics",
+                entity_id=0,
+                new_value="Экспорт расширенного отчета в Excel",
+                reason="Экспорт расширенной аналитики",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            ))
+        except Exception as audit_err:
+            current_app.logger.error(f"Failed to log audit action: {audit_err}")
+        
+        return Response(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+    else:
+        # JSON формат для обратной совместимости
+        report = run_async(advanced_analytics_service.export_analytics_report(format="json"))
+        
+        from flask import Response
+        return Response(
+            json.dumps(report, indent=2, ensure_ascii=False),
+            mimetype='application/json',
+            headers={
+                'Content-Disposition': 'attachment; filename=analytics_report.json'
+            }
+        )
 

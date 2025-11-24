@@ -8,7 +8,10 @@
 <div class="card mb-6">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h2 class="card-title mb-0">Фильтры</h2>
-        <a href="{{ url_for('admin.analytics') }}" class="btn btn-outline">Сбросить</a>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('admin.export_analytics_base') }}" class="btn btn-success">📊 Экспорт в Excel</a>
+            <a href="{{ url_for('admin.analytics') }}" class="btn btn-outline">Сбросить</a>
+        </div>
     </div>
     <div class="card-body">
         <form method="GET" class="grid grid-cols-4 gap-4">

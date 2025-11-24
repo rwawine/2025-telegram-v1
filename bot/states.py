@@ -10,6 +10,7 @@ class RegistrationStates(StatesGroup):
     enter_phone = State()
     enter_loyalty_card = State()
     upload_photo = State()
+    repeat_submission_guard = State()  # Состояние для обработки повторных попыток регистрации
 
 
 class SupportStates(StatesGroup):

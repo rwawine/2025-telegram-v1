@@ -50,6 +50,7 @@ class FixedSmartFallbackHandler:
             ~StateFilter(RegistrationStates.enter_phone),
             ~StateFilter(RegistrationStates.enter_loyalty_card),
             ~StateFilter(RegistrationStates.upload_photo),
+            ~StateFilter(RegistrationStates.repeat_submission_guard),
         )
         
         # Обработчики для разных типов контента
@@ -168,9 +169,9 @@ class FixedSmartFallbackHandler:
             },
             "RegistrationStates:enter_loyalty_card": {
                 "message": "💳 **Сейчас нужен номер карты лояльности**\n\n"
-                          "✅ **Формат:** ровно 16 цифр\n"
+                          "✅ **Формат:** 13 или 16 цифр\n"
                           "✅ **Где найти:** на лицевой стороне карты\n"
-                          "✅ **Пример:** 1234567890123456\n\n"
+                          "✅ **Примеры:** 1234567890123 или 1234567890123456\n\n"
                           "💡 *Найдите карту в приложении или кошельке*",
                 "keyboard": get_loyalty_card_keyboard()
             },

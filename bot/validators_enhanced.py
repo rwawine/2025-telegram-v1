@@ -152,20 +152,23 @@ def validate_loyalty_card_enhanced(card: str) -> ValidationResult:
     
     card = card.strip()
     
-    # Check length (must be exactly 16 digits)
-    if len(card) != 16:
+    # Remove spaces and dashes for validation
+    clean_card = re.sub(r'[\s\-]', '', card)
+    
+    # Check length (must be exactly 13 or 16 digits)
+    if len(clean_card) not in (13, 16):
         return ValidationResult(
             False,
-            "Номер карты должен содержать ровно 16 цифр",
-            "Найдите 16 цифр на лицевой стороне карты. Пример: 1234567890123456"
+            "Номер карты должен содержать 13 или 16 цифр",
+            "Найдите номер на лицевой стороне карты. Примеры: 1234567890123 (13 цифр) или 1234567890123456 (16 цифр)"
         )
     
     # Check format: only digits
-    if not card.isdigit():
+    if not clean_card.isdigit():
         return ValidationResult(
             False,
             "Номер карты должен содержать только цифры",
-            "Используйте 16 цифр с лицевой стороны карты. Пример: 1234567890123456"
+            "Используйте 13 или 16 цифр с лицевой стороны карты. Примеры: 1234567890123 или 1234567890123456"
         )
     
     return ValidationResult(True)

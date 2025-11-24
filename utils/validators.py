@@ -4,7 +4,7 @@ import re
 
 
 PHONE_RE = re.compile(r"^(\+7|7|8)?[0-9]{10}$")
-LOYALTY_RE = re.compile(r"^[0-9]{16}$")
+LOYALTY_RE = re.compile(r"^[0-9]{13}$|^[0-9]{16}$")  # Поддержка 13-значных и 16-значных карт
 
 
 def validate_full_name(value: str) -> bool:
@@ -82,5 +82,10 @@ def normalize_phone(value: str) -> str:
 
 
 def validate_loyalty_card(value: str) -> bool:
-    return bool(value and LOYALTY_RE.match(value))
+    """Валидация номера карты лояльности - поддерживает 13 и 16 цифр"""
+    if not value:
+        return False
+    # Убираем пробелы и дефисы для проверки
+    clean_value = re.sub(r'[\s\-]', '', value)
+    return bool(LOYALTY_RE.match(clean_value))
 

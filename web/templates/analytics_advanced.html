@@ -14,9 +14,9 @@
             <button class="btn btn-outline-primary me-2" onclick="refreshData()">
                 <i class="fas fa-sync-alt me-2"></i>Обновить
             </button>
-            <button class="btn btn-success" onclick="exportReport()">
-                <i class="fas fa-file-export me-2"></i>Экспорт отчета
-            </button>
+            <a href="{{ url_for('admin_new.export_analytics_report', format='xlsx') }}" class="btn btn-success">
+                <i class="fas fa-file-excel me-2"></i>Экспорт в Excel
+            </a>
         </div>
     </div>
 
@@ -358,7 +358,7 @@ function refreshData() {
 }
 
 function exportReport() {
-    window.location.href = '{{ url_for("admin_new.export_analytics_report") }}';
+    window.location.href = '{{ url_for("admin_new.export_analytics_report", format="xlsx") }}';
 }
 </script>
 {% endblock %}
