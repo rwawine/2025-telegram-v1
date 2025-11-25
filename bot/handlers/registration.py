@@ -52,6 +52,30 @@ class RegistrationHandler:
         dispatcher.shutdown.register(self.shutdown)
 
     def _register_handlers(self) -> None:
+        # КРИТИЧЕСКИ ВАЖНО: Обработчик "⬅️ Назад в меню" в состоянии регистрации
+        # Должен быть зарегистрирован ПЕРВЫМ, чтобы иметь наивысший приоритет
+        # и перехватывать сообщение до всех остальных обработчиков
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_name, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_phone, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_loyalty_card, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.upload_photo, 
+            F.text == "⬅️ Назад в меню"
+        )
+        
         # Entry points and main actions
         self.router.message.register(self.start_registration, F.text.contains("регистрац"))
         self.router.message.register(self.start_registration, F.text == "🚀 Начать регистрацию")
@@ -160,7 +184,7 @@ class RegistrationHandler:
         
         # КРИТИЧЕСКИ ВАЖНО: Обработчик "⬅️ Назад в меню" в состоянии регистрации
         # Должен быть зарегистрирован ПОСЛЕДНИМ, чтобы иметь наивысший приоритет
-        # и перехватывать сообщение до обработчика enter_name/enter_phone/etc
+        # и перехватывать сообщение до всех остальных обработчиков
         self.router.message.register(
             self.cancel_registration_to_menu, 
             RegistrationStates.enter_name, 
