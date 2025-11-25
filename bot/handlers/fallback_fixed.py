@@ -51,7 +51,8 @@ class FixedSmartFallbackHandler:
         # Это означает: НЕ в состоянии enter_name И НЕ в состоянии enter_phone И т.д.
         self.router.message.register(
             self.handle_unexpected_text,
-            F.text,
+            F.text,                       # только текстовые сообщения
+            ~F.text.startswith("/"),      # ИСКЛЮЧИТЬ slash-команды (/start, /help, ...)
             ~StateFilter(RegistrationStates.enter_name),      # НЕ в состоянии enter_name
             ~StateFilter(RegistrationStates.enter_phone),      # И НЕ в состоянии enter_phone
             ~StateFilter(RegistrationStates.enter_loyalty_card),  # И НЕ в состоянии enter_loyalty_card
