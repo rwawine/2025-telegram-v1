@@ -107,7 +107,12 @@ class RegistrationHandler:
         self.router.message.register(self.card_unexpected_media, RegistrationStates.enter_loyalty_card, F.location)
 
         # Photo step: block text and non-photo content
-        self.router.message.register(self.photo_unexpected_text, RegistrationStates.upload_photo, F.text)
+        # НО НЕ кнопку "⬅️ Назад в меню" - она обрабатывается отдельным обработчиком
+        self.router.message.register(
+            self.photo_unexpected_text, 
+            RegistrationStates.upload_photo, 
+            F.text & ~(F.text == "⬅️ Назад в меню")
+        )
         self.router.message.register(self.photo_unexpected_document, RegistrationStates.upload_photo, F.document)
         self.router.message.register(self.photo_unexpected_sticker, RegistrationStates.upload_photo, F.sticker)
         self.router.message.register(self.photo_unexpected_media, RegistrationStates.upload_photo, F.video)
@@ -127,11 +132,24 @@ class RegistrationHandler:
         self.router.callback_query.register(self.handle_explain_leaflet_callback, F.data == "explain_leaflet")
 
         # Registration flow
-        self.router.message.register(self.enter_name, RegistrationStates.enter_name, F.text)
+        # Исключаем кнопку "⬅️ Назад в меню" из фильтров, чтобы она обрабатывалась отдельным обработчиком
+        self.router.message.register(
+            self.enter_name, 
+            RegistrationStates.enter_name, 
+            F.text & ~(F.text == "⬅️ Назад в меню")
+        )
         # IMPORTANT: limit phone step handler to text only so contacts go to handle_contact
-        self.router.message.register(self.enter_phone, RegistrationStates.enter_phone, F.text)
+        self.router.message.register(
+            self.enter_phone, 
+            RegistrationStates.enter_phone, 
+            F.text & ~(F.text == "⬅️ Назад в меню")
+        )
         # IMPORTANT: limit loyalty card handler to text only to prevent processing other content types
-        self.router.message.register(self.enter_loyalty_card, RegistrationStates.enter_loyalty_card, F.text)
+        self.router.message.register(
+            self.enter_loyalty_card, 
+            RegistrationStates.enter_loyalty_card, 
+            F.text & ~(F.text == "⬅️ Назад в меню")
+        )
         self.router.message.register(self.upload_photo, RegistrationStates.upload_photo, F.photo)
 
         # Special inputs
@@ -227,22 +245,6 @@ class RegistrationHandler:
 
     async def enter_name(self, message: types.Message, state: FSMContext) -> None:
         """Обработчик ввода имени - должен иметь приоритет над fallback"""
-        # Логируем для отладки
-        import logging
-        logger = logging.getLogger(__name__)
-        current_state = await state.get_state()
-        logger.info(f"enter_name handler called for user {message.from_user.id} with text: {message.text}, current_state: {current_state}")
-        
-        # Дополнительная проверка состояния
-        if current_state != RegistrationStates.enter_name:
-            logger.warning(f"enter_name handler called but state is {current_state}, not enter_name!")
-            return
-        
-        # КРИТИЧЕСКИ ВАЖНО: Игнорируем кнопку "⬅️ Назад в меню" - она обрабатывается отдельным обработчиком
-        if message.text == "⬅️ Назад в меню":
-            logger.info(f"enter_name handler ignoring '⬅️ Назад в меню' button - should be handled by cancel_registration_to_menu")
-            return
-        
         full_name = message.text or ""
         
         from bot.context_manager import get_context_manager
@@ -305,10 +307,6 @@ class RegistrationHandler:
         )
 
     async def enter_phone(self, message: types.Message, state: FSMContext) -> None:
-        # КРИТИЧЕСКИ ВАЖНО: Игнорируем кнопку "⬅️ Назад в меню" - она обрабатывается отдельным обработчиком
-        if message.text == "⬅️ Назад в меню":
-            return
-        
         phone_number = message.text or ""
         if message.text == "✏️ Ввести вручную":
             await message.answer(
@@ -360,10 +358,6 @@ class RegistrationHandler:
         )
 
     async def enter_loyalty_card(self, message: types.Message, state: FSMContext) -> None:
-        # КРИТИЧЕСКИ ВАЖНО: Игнорируем кнопку "⬅️ Назад в меню" - она обрабатывается отдельным обработчиком
-        if message.text == "⬅️ Назад в меню":
-            return
-        
         loyalty_card = message.text or ""
         if not validate_loyalty_card(loyalty_card):
             await message.answer(
