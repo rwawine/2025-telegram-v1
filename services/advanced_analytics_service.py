@@ -506,9 +506,22 @@ class AdvancedAnalyticsService:
                 "SELECT MIN(registration_date), MAX(registration_date) FROM participants"
             )
             row = await cursor.fetchone()
-            min_date = row[0]
-            max_date = row[1]
-            return min_date, max_date
+            if row:
+                min_date = row[0]
+                max_date = row[1]
+                # Преобразуем строки в datetime если нужно
+                if isinstance(min_date, str):
+                    try:
+                        min_date = datetime.fromisoformat(min_date.replace('Z', '+00:00'))
+                    except:
+                        min_date = None
+                if isinstance(max_date, str):
+                    try:
+                        max_date = datetime.fromisoformat(max_date.replace('Z', '+00:00'))
+                    except:
+                        max_date = None
+                return min_date, max_date
+            return None, None
     
     async def export_analytics_report(
         self,

@@ -212,6 +212,94 @@
         </div>
     </div>
 </div>
+
+<!-- Create Participant Modal -->
+<div class="modal fade" id="createParticipantModal" tabindex="-1" aria-labelledby="createParticipantModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin.create_participant') }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createParticipantModalLabel">➕ Добавить участника</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="create_full_name" class="form-label">Полное имя <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="create_full_name" name="full_name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_phone_number" class="form-label">Номер телефона <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="create_phone_number" name="phone_number" placeholder="+79001234567" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_loyalty_card" class="form-label">Номер карты лояльности <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="create_loyalty_card" name="loyalty_card" placeholder="13 или 16 цифр" required>
+                            <small class="form-text text-muted">Поддерживаются карты с 13 или 16 цифрами</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_telegram_id" class="form-label">Telegram ID</label>
+                            <input type="number" class="form-control" id="create_telegram_id" name="telegram_id" placeholder="Опционально">
+                            <small class="form-text text-muted">Если не указан, будет сгенерирован автоматически</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="create_username" name="username" placeholder="@username">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="create_status" class="form-label">Статус</label>
+                            <select class="form-control" id="create_status" name="status">
+                                <option value="pending" selected>Ожидает</option>
+                                <option value="approved">Одобрено</option>
+                                <option value="rejected">Отклонено</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label for="create_photo_file" class="form-label">Фото лифлета</label>
+                            <input type="file" class="form-control" id="create_photo_file" name="photo_file" accept="image/*">
+                            <small class="form-text text-muted">JPG, PNG, GIF (опционально)</small>
+                        </div>
+                        <div class="col-12">
+                            <label for="create_admin_notes" class="form-label">Заметки администратора</label>
+                            <textarea class="form-control" id="create_admin_notes" name="admin_notes" rows="3" placeholder="Внутренние заметки..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать участника</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('admin.import_participants') }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">Импорт участников (CSV)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="csvFile" class="form-label">CSV файл</label>
+                        <input type="file" class="form-control" id="csvFile" name="file" accept=".csv" required>
+                        <div class="form-text">Поля: telegram_id, username, full_name, phone_number, loyalty_card, photo_path</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Импортировать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -520,93 +608,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-
-<!-- Create Participant Modal -->
-<div class="modal fade" id="createParticipantModal" tabindex="-1" aria-labelledby="createParticipantModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <form method="POST" action="{{ url_for('admin.create_participant') }}" enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <div class="modal-header">
-                    <h5 class="modal-title" id="createParticipantModalLabel">➕ Добавить участника</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="create_full_name" class="form-label">Полное имя <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="create_full_name" name="full_name" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="create_phone_number" class="form-label">Номер телефона <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="create_phone_number" name="phone_number" placeholder="+79001234567" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="create_loyalty_card" class="form-label">Номер карты лояльности <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="create_loyalty_card" name="loyalty_card" placeholder="13 или 16 цифр" required>
-                            <small class="form-text text-muted">Поддерживаются карты с 13 или 16 цифрами</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="create_telegram_id" class="form-label">Telegram ID</label>
-                            <input type="number" class="form-control" id="create_telegram_id" name="telegram_id" placeholder="Опционально">
-                            <small class="form-text text-muted">Если не указан, будет сгенерирован автоматически</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="create_username" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="create_username" name="username" placeholder="@username">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="create_status" class="form-label">Статус</label>
-                            <select class="form-control" id="create_status" name="status">
-                                <option value="pending" selected>Ожидает</option>
-                                <option value="approved">Одобрено</option>
-                                <option value="rejected">Отклонено</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label for="create_photo_file" class="form-label">Фото лифлета</label>
-                            <input type="file" class="form-control" id="create_photo_file" name="photo_file" accept="image/*">
-                            <small class="form-text text-muted">JPG, PNG, GIF (опционально)</small>
-                        </div>
-                        <div class="col-12">
-                            <label for="create_admin_notes" class="form-label">Заметки администратора</label>
-                            <textarea class="form-control" id="create_admin_notes" name="admin_notes" rows="3" placeholder="Внутренние заметки..."></textarea>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Создать участника</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Import Modal -->
-<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="POST" action="{{ url_for('admin.import_participants') }}" enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <div class="modal-header">
-                    <h5 class="modal-title" id="importModalLabel">Импорт участников (CSV)</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="csvFile" class="form-label">CSV файл</label>
-                        <input type="file" class="form-control" id="csvFile" name="file" accept=".csv" required>
-                        <div class="form-text">Поля: telegram_id, username, full_name, phone_number, loyalty_card, photo_path</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Импортировать</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Clear All Modal удалён по требованию -->
