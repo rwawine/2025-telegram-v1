@@ -61,7 +61,29 @@ class RegistrationHandler:
         # REMOVED: back_to_menu с "Главное меню" (теперь в global_commands.py)
 
         # Navigation within flow (should run before field validation handlers)
-        # REMOVED: back_to_menu с "Назад в меню" (теперь в global_commands.py)
+        # КРИТИЧЕСКИ ВАЖНО: Обработчик "⬅️ Назад в меню" в состоянии регистрации
+        # Должен быть зарегистрирован ПЕРЕД обработчиком в global_commands.py
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_name, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_phone, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_loyalty_card, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.upload_photo, 
+            F.text == "⬅️ Назад в меню"
+        )
+        
         self.router.message.register(self.back_to_name, F.text.contains("Назад к имени"))
         self.router.message.register(self.back_to_phone, F.text.contains("Назад к телефону"))
         self.router.message.register(self.back_to_card, F.text.contains("Назад к карте"))
@@ -207,7 +229,13 @@ class RegistrationHandler:
         # Логируем для отладки
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"enter_name handler called for user {message.from_user.id} with text: {message.text}")
+        current_state = await state.get_state()
+        logger.info(f"enter_name handler called for user {message.from_user.id} with text: {message.text}, current_state: {current_state}")
+        
+        # Дополнительная проверка состояния
+        if current_state != RegistrationStates.enter_name:
+            logger.warning(f"enter_name handler called but state is {current_state}, not enter_name!")
+            return
         
         full_name = message.text or ""
         
@@ -1073,6 +1101,28 @@ class RegistrationHandler:
         keyboard = await get_main_menu_keyboard_for_user(callback.from_user.id)
         await callback.message.answer("Что дальше?", reply_markup=keyboard)
 
+    async def cancel_registration_to_menu(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик кнопки '⬅️ Назад в меню' в состояниях регистрации"""
+        from bot.keyboards import get_main_menu_keyboard_for_user
+        
+        await state.clear()
+        
+        context_manager = get_context_manager()
+        if context_manager:
+            await context_manager.update_context(
+                message.from_user.id,
+                UserContext.NAVIGATION,
+                UserAction.BUTTON_CLICK
+            )
+        
+        keyboard = await get_main_menu_keyboard_for_user(message.from_user.id)
+        await message.answer(
+            "🏠 **Главное меню**\n\n"
+            "Регистрация отменена. Вы вернулись в главное меню.",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+    
     async def handle_cancel_registration(self, callback: types.CallbackQuery, state: FSMContext) -> None:
         """Handle registration cancellation"""
         await callback.answer()

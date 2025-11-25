@@ -87,11 +87,12 @@ class CommonHandlers:
             
         await message.answer(text, reply_markup=get_status_keyboard())
 
-    async def restart_registration(self, message: types.Message) -> None:
+    async def restart_registration(self, message: types.Message, state) -> None:
         """Обработчик повторной подачи заявки"""
         from bot.handlers.registration import RegistrationHandler
         from pathlib import Path
         from services.cache import get_cache
+        from aiogram.fsm.context import FSMContext
         
         context_manager = get_context_manager()
         if context_manager:
@@ -108,7 +109,8 @@ class CommonHandlers:
             bot=None  # Не нужен для этого действия
         )
         
-        await registration_handler.start_registration(message, None)
+        # КРИТИЧЕСКИ ВАЖНО: Передаем state, чтобы обработчик мог установить состояние enter_name
+        await registration_handler.start_registration(message, state)
 
     async def handle_results_redirect(self, message: types.Message) -> None:
         """Перенаправление старой кнопки результатов на помощь"""
