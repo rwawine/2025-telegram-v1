@@ -33,6 +33,9 @@ class FixedSmartFallbackHandler:
     
     def setup(self, dispatcher) -> None:
         # Fallback handlers должны быть последними (самый низкий приоритет)
+        # В aiogram последний зарегистрированный роутер имеет приоритет,
+        # поэтому fallback регистрируется последним, но мы все равно проверяем
+        # состояния явно в handle_unexpected_text для надежности
         dispatcher.include_router(self.router)
     
     def _register_handlers(self):
@@ -95,10 +98,23 @@ class FixedSmartFallbackHandler:
         """ИСПРАВЛЕННЫЙ обработчик неожиданных текстовых сообщений"""
         
         current_state = await state.get_state()
-        context_manager = get_context_manager()
         
-        # ВАЖНО: Не возвращаемся раньше времени!
-        # Проверяем, обработал ли кто-то это сообщение в своем состоянии
+        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Если пользователь в состоянии регистрации, 
+        # этот обработчик НЕ должен срабатывать - он исключен фильтрами.
+        # Если мы здесь, значит состояние не в списке исключений, но проверим на всякий случай
+        from bot.states import RegistrationStates
+        if current_state in [
+            RegistrationStates.enter_name,
+            RegistrationStates.enter_phone,
+            RegistrationStates.enter_loyalty_card,
+            RegistrationStates.upload_photo,
+            RegistrationStates.repeat_submission_guard
+        ]:
+            # Это не должно произойти, но на всякий случай просто возвращаемся
+            # Сообщение должно обрабатываться специальными обработчиками
+            return
+        
+        context_manager = get_context_manager()
         
         if context_manager:
             await context_manager.update_context(
@@ -107,7 +123,7 @@ class FixedSmartFallbackHandler:
                 UserAction.TEXT_INPUT
             )
         
-        # Если пользователь в FSM состоянии, помогаем контекстуально
+        # Если пользователь в FSM состоянии (но не регистрации), помогаем контекстуально
         if current_state:
             await self._provide_fsm_help(message, state, current_state)
         else:

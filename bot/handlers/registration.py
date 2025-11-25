@@ -44,6 +44,9 @@ class RegistrationHandler:
         self._register_handlers()
 
     def setup(self, dispatcher) -> None:
+        # Регистрация роутера с высоким приоритетом (регистрируется до fallback)
+        # В aiogram последний зарегистрированный роутер имеет приоритет,
+        # но мы регистрируемся до fallback, так что это должно работать
         dispatcher.include_router(self.router)
         dispatcher.shutdown.register(self.shutdown)
 
