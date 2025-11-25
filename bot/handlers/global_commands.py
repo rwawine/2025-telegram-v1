@@ -3,7 +3,6 @@
 from aiogram import F, Router, types
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import SkipHandler
 
 from bot.keyboards import get_main_menu_keyboard_for_user
 from bot.context_manager import get_context_manager, UserContext, UserAction
@@ -238,7 +237,6 @@ class GlobalCommandsHandler:
         current_state = await state.get_state()
         
         # Если мы в состоянии регистрации, не обрабатываем здесь
-        # Используем SkipHandler, чтобы явно пропустить этот обработчик и передать управление следующему
         if current_state in [
             RegistrationStates.enter_name,
             RegistrationStates.enter_phone,
@@ -246,7 +244,7 @@ class GlobalCommandsHandler:
             RegistrationStates.upload_photo,
             RegistrationStates.repeat_submission_guard
         ]:
-            raise SkipHandler()
+            return
         
         # Очищаем FSM состояние
         await state.clear()

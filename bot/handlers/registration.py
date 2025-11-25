@@ -184,7 +184,7 @@ class RegistrationHandler:
         
         # КРИТИЧЕСКИ ВАЖНО: Обработчик "⬅️ Назад в меню" в состоянии регистрации
         # Должен быть зарегистрирован ПОСЛЕДНИМ, чтобы иметь наивысший приоритет
-        # и перехватывать сообщение до всех остальных обработчиков
+        # и перехватывать сообщение до обработчика enter_name/enter_phone/etc
         self.router.message.register(
             self.cancel_registration_to_menu, 
             RegistrationStates.enter_name, 
