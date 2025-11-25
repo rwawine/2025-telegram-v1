@@ -295,3 +295,64 @@ Traceback (most recent call last):
     raise TelegramNetworkError(method=method, message=f"{type(e).__name__}: {e}")
 aiogram.exceptions.TelegramNetworkError: HTTP Client says - ClientConnectorDNSError: Cannot connect to host api.telegram.org:443 ssl:default [getaddrinfo failed]
 2025-10-15 18:27:28,645 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-11-26 01:58:00,291 | [31mERROR[0m | app | <module>:38 | Application failed: 'charmap' codec can't encode character '\U0001f680' in position 0: character maps to <undefined>
+Traceback (most recent call last):
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\main.py", line 34, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\main.py", line 28, in main
+    await app.initialize()
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\core\app_initializer.py", line 38, in initialize
+    await self._check_first_time_setup()
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\core\app_initializer.py", line 100, in _check_first_time_setup
+    if not initialize_system():
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\system_initializer.py", line 372, in initialize_system
+    print("🚀 Initializing Telegram Lottery Bot System...")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1251.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f680' in position 0: character maps to <undefined>
+2025-11-26 01:58:43,561 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-11-26 01:59:07,002 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-11-26 01:59:54,816 | [32mINFO[0m | app | <module>:36 | Application stopped by user
+2025-11-26 02:00:12,679 | [31mERROR[0m | app | <module>:38 | Application failed: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+Traceback (most recent call last):
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\main.py", line 34, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\main.py", line 28, in main
+    await app.initialize()
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\core\app_initializer.py", line 56, in initialize
+    await self._init_web_server()
+  File "C:\Users\rwawine\Downloads\2025-telegram-v1\core\app_initializer.py", line 193, in _init_web_server
+    await site.start()
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\site-packages\aiohttp\web_runner.py", line 121, in start
+    self._server = await loop.create_server(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "C:\Users\rwawine\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 1627, in create_server
+    raise OSError(err.errno, msg) from None
+OSError: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 5000): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2025-11-26 02:02:36,707 | [32mINFO[0m | app | <module>:36 | Application stopped by user

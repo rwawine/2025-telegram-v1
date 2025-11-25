@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import StateFilter, Command
+from aiogram.filters import StateFilter
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from bot.context_manager import get_context_manager, UserContext, UserAction
@@ -41,24 +41,20 @@ class FixedSmartFallbackHandler:
     def _register_handlers(self):
         """Регистрация умных fallback обработчиков"""
         
-        # ИСПРАВЛЕНИЕ: Убираем раннее возвращение при наличии состояния!
-        # Теперь fallback handlers работают и в FSM состояниях
-        
-        # Обработчик для всех неожиданных текстовых сообщений (самый низкий приоритет)
-        # КРИТИЧЕСКИ ВАЖНО: ИСКЛЮЧАЕМ ВСЕ FSM состояния регистрации - они должны обрабатываться специальными обработчиками
-        # ИСКЛЮЧАЕМ КОМАНДЫ - они должны обрабатываться Command-фильтрами в других роутерах
-        # Используем множественные фильтры ~StateFilter - они автоматически объединяются через AND
-        # Это означает: НЕ в состоянии enter_name И НЕ в состоянии enter_phone И т.д. И НЕ команда
-        self.router.message.register(
-            self.handle_unexpected_text,
-            F.text,
-            ~Command(),  # НЕ команда (например, /start, /help и т.д.)
-            ~StateFilter(RegistrationStates.enter_name),      # НЕ в состоянии enter_name
-            ~StateFilter(RegistrationStates.enter_phone),      # И НЕ в состоянии enter_phone
-            ~StateFilter(RegistrationStates.enter_loyalty_card),  # И НЕ в состоянии enter_loyalty_card
-            ~StateFilter(RegistrationStates.upload_photo),    # И НЕ в состоянии upload_photo
-            ~StateFilter(RegistrationStates.repeat_submission_guard),  # И НЕ в состоянии repeat_submission_guard
-        )
+        # ОТКЛЮЧЕН: Обработчик текстовых сообщений полностью отключен
+        # Все текстовые сообщения должны обрабатываться специфичными обработчиками
+        # Это гарантирует, что кнопки и команды работают корректно
+        # 
+        # Если нужно вернуть fallback для текста, можно раскомментировать:
+        # self.router.message.register(
+        #     self.handle_unexpected_text,
+        #     F.text,
+        #     ~StateFilter(RegistrationStates.enter_name),
+        #     ~StateFilter(RegistrationStates.enter_phone),
+        #     ~StateFilter(RegistrationStates.enter_loyalty_card),
+        #     ~StateFilter(RegistrationStates.upload_photo),
+        #     ~StateFilter(RegistrationStates.repeat_submission_guard),
+        # )
         
         # Обработчики для разных типов контента
         self.router.message.register(
@@ -100,6 +96,15 @@ class FixedSmartFallbackHandler:
     
     async def handle_unexpected_text(self, message: types.Message, state: FSMContext):
         """ИСПРАВЛЕННЫЙ обработчик неожиданных текстовых сообщений"""
+        
+        # ГЛАВНАЯ ЗАЩИТА: никогда не трогаем slash-команды (/start, /help и т.п.)
+        # Их должны обрабатывать Command-фильтры в других роутерах.
+        if message.text and message.text.startswith("/"):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Fallback handler skipping slash command: {message.text}")
+            # Просто возвращаемся - команда должна обрабатываться другими обработчиками
+            return
         
         # КРИТИЧЕСКАЯ ЗАЩИТА: Проверяем известные команды/кнопки, которые должны обрабатываться другими обработчиками
         # Если это известная команда, НЕ обрабатываем её здесь
