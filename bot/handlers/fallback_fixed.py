@@ -9,6 +9,7 @@ from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.exceptions import SkipHandler
 
 from bot.context_manager import get_context_manager, UserContext, UserAction
 from bot.states import RegistrationStates
@@ -105,7 +106,8 @@ class FixedSmartFallbackHandler:
             import logging
             logger = logging.getLogger(__name__)
             logger.debug(f"Fallback handler skipping slash command: {message.text}")
-            return
+            # Позволяем другим хендлерам обработать команду
+            raise SkipHandler()
         
         # КРИТИЧЕСКАЯ ЗАЩИТА: Проверяем известные команды/кнопки, которые должны обрабатываться другими обработчиками
         # Если это известная команда, НЕ обрабатываем её здесь
@@ -135,7 +137,7 @@ class FixedSmartFallbackHandler:
             import logging
             logger = logging.getLogger(__name__)
             logger.debug(f"Fallback handler skipping known command: {message.text}")
-            return
+            raise SkipHandler()
         
         # Также проверяем частичное совпадение для длинных команд
         for cmd in known_commands:
@@ -143,7 +145,7 @@ class FixedSmartFallbackHandler:
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.debug(f"Fallback handler skipping known command (partial match): {message.text}")
-                return
+                raise SkipHandler()
         
         current_state = await state.get_state()
         
