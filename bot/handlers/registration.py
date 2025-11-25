@@ -61,29 +61,6 @@ class RegistrationHandler:
         # REMOVED: back_to_menu с "Главное меню" (теперь в global_commands.py)
 
         # Navigation within flow (should run before field validation handlers)
-        # КРИТИЧЕСКИ ВАЖНО: Обработчик "⬅️ Назад в меню" в состоянии регистрации
-        # Должен быть зарегистрирован ПЕРЕД обработчиком в global_commands.py
-        self.router.message.register(
-            self.cancel_registration_to_menu, 
-            RegistrationStates.enter_name, 
-            F.text == "⬅️ Назад в меню"
-        )
-        self.router.message.register(
-            self.cancel_registration_to_menu, 
-            RegistrationStates.enter_phone, 
-            F.text == "⬅️ Назад в меню"
-        )
-        self.router.message.register(
-            self.cancel_registration_to_menu, 
-            RegistrationStates.enter_loyalty_card, 
-            F.text == "⬅️ Назад в меню"
-        )
-        self.router.message.register(
-            self.cancel_registration_to_menu, 
-            RegistrationStates.upload_photo, 
-            F.text == "⬅️ Назад в меню"
-        )
-        
         self.router.message.register(self.back_to_name, F.text.contains("Назад к имени"))
         self.router.message.register(self.back_to_phone, F.text.contains("Назад к телефону"))
         self.router.message.register(self.back_to_card, F.text.contains("Назад к карте"))
@@ -162,6 +139,30 @@ class RegistrationHandler:
         
         # Repeat submission guard - обрабатывает любые сообщения при повторной попытке регистрации
         self.router.message.register(self.handle_repeat_submission, RegistrationStates.repeat_submission_guard)
+        
+        # КРИТИЧЕСКИ ВАЖНО: Обработчик "⬅️ Назад в меню" в состоянии регистрации
+        # Должен быть зарегистрирован ПОСЛЕДНИМ, чтобы иметь наивысший приоритет
+        # и перехватывать сообщение до обработчика enter_name/enter_phone/etc
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_name, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_phone, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.enter_loyalty_card, 
+            F.text == "⬅️ Назад в меню"
+        )
+        self.router.message.register(
+            self.cancel_registration_to_menu, 
+            RegistrationStates.upload_photo, 
+            F.text == "⬅️ Назад в меню"
+        )
 
     async def start_registration(self, message: types.Message, state: FSMContext) -> None:
         # Обновляем контекст пользователя

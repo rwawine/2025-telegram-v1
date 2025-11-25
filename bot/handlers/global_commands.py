@@ -44,10 +44,11 @@ class GlobalCommandsHandler:
         
         # Кнопка "Назад в меню" из любого состояния, НО НЕ в состояниях регистрации
         # В состояниях регистрации эти кнопки должны обрабатываться специальными обработчиками
+        # Используем точное совпадение, чтобы не перехватывать кнопку "⬅️ Назад в меню" в состояниях регистрации
         from bot.states import RegistrationStates
         self.router.message.register(
             self.back_to_menu, 
-            F.text.contains("Назад в меню"),
+            F.text == "⬅️ Назад в меню",
             ~StateFilter(RegistrationStates.enter_name),
             ~StateFilter(RegistrationStates.enter_phone),
             ~StateFilter(RegistrationStates.enter_loyalty_card),
