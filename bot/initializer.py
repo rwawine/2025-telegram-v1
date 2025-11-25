@@ -73,7 +73,13 @@ class BotInitializer:
         setup_common_handlers(bot.dispatcher)
         setup_support_handlers(bot.dispatcher)
 
-        # 3. Registration handlers (высокий приоритет)
+        # 3. Global commands (регистрируем ДО registration handlers, чтобы команды работали везде)
+        # НО обработчики регистрации имеют приоритет в своих состояниях благодаря StateFilter
+        setup_global_commands(bot.dispatcher)
+        logger.info("✅ Global commands registered")
+
+        # 4. Registration handlers (ВЫСШИЙ приоритет - регистрируем ПОСЛЕДНИМИ)
+        # Это гарантирует, что обработчики регистрации имеют приоритет в своих состояниях
         # Use already created upload_path
         setup_registration_handlers(
             bot.dispatcher,
@@ -81,11 +87,7 @@ class BotInitializer:
             cache=self.cache,
             bot=bot.bot,
         )
-        logger.info("✅ Specific handlers registered")
-
-        # 4. Global commands (должны срабатывать в ЛЮБОМ состоянии – наивысший приоритет)
-        setup_global_commands(bot.dispatcher)
-        logger.info("✅ Global commands registered")
+        logger.info("✅ Registration handlers registered")
 
         # 5. Middleware
         setup_fsm_middleware(bot.dispatcher)

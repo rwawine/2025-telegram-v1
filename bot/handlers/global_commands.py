@@ -1,7 +1,7 @@
 """Глобальные команды, которые работают в любом состоянии FSM."""
 
 from aiogram import F, Router, types
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 
 from bot.keyboards import get_main_menu_keyboard_for_user
@@ -42,11 +42,29 @@ class GlobalCommandsHandler:
         self.router.message.register(self.emergency_menu, F.text == "🆘 МЕНЮ")
         self.router.message.register(self.emergency_cancel, F.text == "❌ ОТМЕНА")
         
-        # Кнопка "Назад в меню" из любого состояния
-        self.router.message.register(self.back_to_menu, F.text.contains("Назад в меню"))
+        # Кнопка "Назад в меню" из любого состояния, НО НЕ в состояниях регистрации
+        # В состояниях регистрации эти кнопки должны обрабатываться специальными обработчиками
+        from bot.states import RegistrationStates
+        self.router.message.register(
+            self.back_to_menu, 
+            F.text.contains("Назад в меню"),
+            ~StateFilter(RegistrationStates.enter_name),
+            ~StateFilter(RegistrationStates.enter_phone),
+            ~StateFilter(RegistrationStates.enter_loyalty_card),
+            ~StateFilter(RegistrationStates.upload_photo),
+            ~StateFilter(RegistrationStates.repeat_submission_guard),
+        )
         
-        # Кнопка "Главное меню" из любого состояния (включая поддержку)
-        self.router.message.register(self.back_to_menu, F.text == "🏠 Главное меню")
+        # Кнопка "Главное меню" из любого состояния (включая поддержку), НО НЕ в состояниях регистрации
+        self.router.message.register(
+            self.back_to_menu, 
+            F.text == "🏠 Главное меню",
+            ~StateFilter(RegistrationStates.enter_name),
+            ~StateFilter(RegistrationStates.enter_phone),
+            ~StateFilter(RegistrationStates.enter_loyalty_card),
+            ~StateFilter(RegistrationStates.upload_photo),
+            ~StateFilter(RegistrationStates.repeat_submission_guard),
+        )
     
     async def handle_start(self, message: types.Message, state: FSMContext) -> None:
         """Команда /start - сбрасывает состояние и показывает соглашение или меню"""
