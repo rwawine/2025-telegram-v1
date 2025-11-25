@@ -45,15 +45,17 @@ class FixedSmartFallbackHandler:
         # Теперь fallback handlers работают и в FSM состояниях
         
         # Обработчик для всех неожиданных текстовых сообщений (самый низкий приоритет)
-        # ИСКЛЮЧАЕМ ВСЕ FSM состояния регистрации - они должны обрабатываться специальными обработчиками
+        # КРИТИЧЕСКИ ВАЖНО: ИСКЛЮЧАЕМ ВСЕ FSM состояния регистрации - они должны обрабатываться специальными обработчиками
+        # Используем множественные фильтры ~StateFilter - они автоматически объединяются через AND
+        # Это означает: НЕ в состоянии enter_name И НЕ в состоянии enter_phone И т.д.
         self.router.message.register(
             self.handle_unexpected_text,
             F.text,
-            ~StateFilter(RegistrationStates.enter_name),
-            ~StateFilter(RegistrationStates.enter_phone),
-            ~StateFilter(RegistrationStates.enter_loyalty_card),
-            ~StateFilter(RegistrationStates.upload_photo),
-            ~StateFilter(RegistrationStates.repeat_submission_guard),
+            ~StateFilter(RegistrationStates.enter_name),      # НЕ в состоянии enter_name
+            ~StateFilter(RegistrationStates.enter_phone),      # И НЕ в состоянии enter_phone
+            ~StateFilter(RegistrationStates.enter_loyalty_card),  # И НЕ в состоянии enter_loyalty_card
+            ~StateFilter(RegistrationStates.upload_photo),    # И НЕ в состоянии upload_photo
+            ~StateFilter(RegistrationStates.repeat_submission_guard),  # И НЕ в состоянии repeat_submission_guard
         )
         
         # Обработчики для разных типов контента
@@ -99,19 +101,62 @@ class FixedSmartFallbackHandler:
         
         current_state = await state.get_state()
         
-        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Если пользователь в состоянии регистрации, 
+        # КРИТИЧЕСКАЯ ЗАЩИТА: Если пользователь в состоянии регистрации, 
         # этот обработчик НЕ должен срабатывать - он исключен фильтрами.
-        # Если мы здесь, значит состояние не в списке исключений, но проверим на всякий случай
+        # Дополнительная проверка на случай, если фильтры не сработали
         from bot.states import RegistrationStates
-        if current_state in [
-            RegistrationStates.enter_name,
-            RegistrationStates.enter_phone,
-            RegistrationStates.enter_loyalty_card,
-            RegistrationStates.upload_photo,
-            RegistrationStates.repeat_submission_guard
-        ]:
-            # Это не должно произойти, но на всякий случай просто возвращаемся
-            # Сообщение должно обрабатываться специальными обработчиками
+        
+        # Проверяем состояние как строку
+        state_str = str(current_state) if current_state else None
+        
+        # Список ключей состояний регистрации (наиболее надежный способ проверки)
+        registration_state_keys = [
+            "RegistrationStates:enter_name",
+            "RegistrationStates:enter_phone", 
+            "RegistrationStates:enter_loyalty_card",
+            "RegistrationStates:upload_photo",
+            "RegistrationStates:repeat_submission_guard"
+        ]
+        
+        # Проверяем, является ли текущее состояние одним из состояний регистрации
+        is_registration_state = False
+        if current_state and state_str:
+            # Проверяем по строковому представлению состояния
+            state_str_normalized = state_str.replace(" ", "").lower()
+            for reg_key in registration_state_keys:
+                reg_key_normalized = reg_key.lower()
+                # Проверяем точное совпадение или вхождение ключа состояния
+                if (state_str == reg_key or 
+                    state_str_normalized == reg_key_normalized or
+                    reg_key_normalized in state_str_normalized or
+                    state_str.endswith(reg_key.split(':')[-1]) or
+                    f":{reg_key.split(':')[-1]}" in state_str):
+                    is_registration_state = True
+                    break
+            
+            # Дополнительная проверка по объекту состояния
+            if not is_registration_state:
+                registration_states = [
+                    RegistrationStates.enter_name,
+                    RegistrationStates.enter_phone,
+                    RegistrationStates.enter_loyalty_card,
+                    RegistrationStates.upload_photo,
+                    RegistrationStates.repeat_submission_guard
+                ]
+                if current_state in registration_states:
+                    is_registration_state = True
+        
+        if is_registration_state:
+            # КРИТИЧЕСКАЯ ОШИБКА: Этот обработчик не должен срабатывать для состояний регистрации!
+            # Просто возвращаемся без обработки - сообщение должно обрабатываться специальными обработчиками
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(
+                f"CRITICAL: Fallback handler intercepted message in registration state! "
+                f"State: {current_state}, User: {message.from_user.id}, Text: {message.text}. "
+                f"This should NEVER happen - registration handlers should process this!"
+            )
+            # НЕ обрабатываем сообщение - просто возвращаемся
             return
         
         context_manager = get_context_manager()

@@ -58,15 +58,20 @@ class BotInitializer:
         logger.info("✅ Services initialized")
         
         # Register handlers in priority order
-        # 1. Global commands (highest priority)
-        setup_global_commands(bot.dispatcher)
-        logger.info("✅ Global commands registered")
+        # В aiogram последний зарегистрированный роутер имеет ПРИОРИТЕТ
+        # Поэтому регистрируем в обратном порядке: сначала fallback (низкий приоритет),
+        # затем специфичные обработчики (высокий приоритет)
+        
+        # 1. Fallback handlers (lowest priority - регистрируем ПЕРВЫМИ)
+        setup_fixed_fallback_handlers(bot.dispatcher)
+        logger.info("✅ Fallback handlers registered")
         
         # 2. Specific handlers (medium priority)
         setup_common_handlers(bot.dispatcher)
         setup_support_handlers(bot.dispatcher)
         
         # Use already created upload_path
+        # 3. Registration handlers (highest priority - регистрируем ПОСЛЕДНИМИ)
         setup_registration_handlers(
             bot.dispatcher,
             upload_dir=upload_path,
@@ -75,9 +80,9 @@ class BotInitializer:
         )
         logger.info("✅ Specific handlers registered")
         
-        # 3. Fallback handlers (lowest priority)
-        setup_fixed_fallback_handlers(bot.dispatcher)
-        logger.info("✅ Fallback handlers registered")
+        # 4. Global commands (highest priority - регистрируем ПОСЛЕДНИМИ)
+        setup_global_commands(bot.dispatcher)
+        logger.info("✅ Global commands registered")
         
         # 4. Middleware
         setup_fsm_middleware(bot.dispatcher)

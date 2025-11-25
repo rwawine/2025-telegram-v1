@@ -44,9 +44,10 @@ class RegistrationHandler:
         self._register_handlers()
 
     def setup(self, dispatcher) -> None:
-        # Регистрация роутера с высоким приоритетом (регистрируется до fallback)
-        # В aiogram последний зарегистрированный роутер имеет приоритет,
-        # но мы регистрируемся до fallback, так что это должно работать
+        # КРИТИЧЕСКИ ВАЖНО: Регистрация роутера с ВЫСШИМ приоритетом
+        # В aiogram последний зарегистрированный роутер имеет ПРИОРИТЕТ
+        # Этот роутер должен регистрироваться ПОСЛЕ fallback handlers
+        # для гарантированного приоритета обработки сообщений в состояниях регистрации
         dispatcher.include_router(self.router)
         dispatcher.shutdown.register(self.shutdown)
 
@@ -202,6 +203,12 @@ class RegistrationHandler:
         await state.set_state(RegistrationStates.enter_name)
 
     async def enter_name(self, message: types.Message, state: FSMContext) -> None:
+        """Обработчик ввода имени - должен иметь приоритет над fallback"""
+        # Логируем для отладки
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"enter_name handler called for user {message.from_user.id} with text: {message.text}")
+        
         full_name = message.text or ""
         
         from bot.context_manager import get_context_manager
