@@ -231,6 +231,21 @@ class GlobalCommandsHandler:
     
     async def back_to_menu(self, message: types.Message, state: FSMContext) -> None:
         """Обработчик кнопки 'Назад в меню' из любого состояния"""
+        # КРИТИЧЕСКИ ВАЖНО: Проверяем, не находимся ли мы в состоянии регистрации
+        # Если да, то этот обработчик не должен срабатывать - есть специальный обработчик в registration.py
+        from bot.states import RegistrationStates
+        current_state = await state.get_state()
+        
+        # Если мы в состоянии регистрации, не обрабатываем здесь
+        if current_state in [
+            RegistrationStates.enter_name,
+            RegistrationStates.enter_phone,
+            RegistrationStates.enter_loyalty_card,
+            RegistrationStates.upload_photo,
+            RegistrationStates.repeat_submission_guard
+        ]:
+            return
+        
         # Очищаем FSM состояние
         await state.clear()
         
