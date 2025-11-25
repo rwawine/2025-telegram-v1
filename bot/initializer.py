@@ -58,19 +58,22 @@ class BotInitializer:
         logger.info("✅ Services initialized")
         
         # Register handlers in priority order
-        # В aiogram последний зарегистрированный роутер имеет ПРИОРИТЕТ
-        # Поэтому регистрируем в обратном порядке: сначала fallback (низкий приоритет),
-        # затем специфичные обработчики (высокий приоритет)
-        
-        # IMPORTANT about priority:
-        # In practice, routers registered EARLIER tend to see updates earlier.
-        # We want global commands and concrete feature handlers to win over
-        # generic fallback handlers and only use fallback as a last resort.
+        # В aiogram последний зарегистрированный роутер имеет ПРИОРИТЕТ.
+        # Поэтому:
+        # 1) fallback-ротер регистрируем ПЕРВЫМ (самый низкий приоритет),
+        # 2) затем common/support,
+        # 3) затем registration,
+        # 4) и в самом конце global commands (наивысший приоритет).
 
-        # 1. Specific handlers (registration/common/support)
+        # 1. Fallback handlers (lowest priority – регистрируем ПЕРВЫМИ)
+        setup_fixed_fallback_handlers(bot.dispatcher)
+        logger.info("✅ Fallback handlers registered")
+
+        # 2. Common/support handlers (средний приоритет)
         setup_common_handlers(bot.dispatcher)
         setup_support_handlers(bot.dispatcher)
 
+        # 3. Registration handlers (высокий приоритет)
         # Use already created upload_path
         setup_registration_handlers(
             bot.dispatcher,
@@ -80,15 +83,11 @@ class BotInitializer:
         )
         logger.info("✅ Specific handlers registered")
 
-        # 2. Global commands (should work from ANY state, including before fallback)
+        # 4. Global commands (должны срабатывать в ЛЮБОМ состоянии – наивысший приоритет)
         setup_global_commands(bot.dispatcher)
         logger.info("✅ Global commands registered")
 
-        # 3. Fallback handlers (lowest priority – register LAST)
-        setup_fixed_fallback_handlers(bot.dispatcher)
-        logger.info("✅ Fallback handlers registered")
-
-        # 4. Middleware
+        # 5. Middleware
         setup_fsm_middleware(bot.dispatcher)
         setup_rate_limit_middleware(
             bot.dispatcher,
