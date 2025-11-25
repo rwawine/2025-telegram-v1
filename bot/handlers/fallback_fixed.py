@@ -7,9 +7,8 @@ from typing import Dict, Any
 
 from aiogram import F, Router, types
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import StateFilter
+from aiogram.filters import StateFilter, Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.exceptions import SkipHandler
 
 from bot.context_manager import get_context_manager, UserContext, UserAction
 from bot.states import RegistrationStates
@@ -47,12 +46,13 @@ class FixedSmartFallbackHandler:
         
         # Обработчик для всех неожиданных текстовых сообщений (самый низкий приоритет)
         # КРИТИЧЕСКИ ВАЖНО: ИСКЛЮЧАЕМ ВСЕ FSM состояния регистрации - они должны обрабатываться специальными обработчиками
+        # ИСКЛЮЧАЕМ КОМАНДЫ - они должны обрабатываться Command-фильтрами в других роутерах
         # Используем множественные фильтры ~StateFilter - они автоматически объединяются через AND
-        # Это означает: НЕ в состоянии enter_name И НЕ в состоянии enter_phone И т.д.
+        # Это означает: НЕ в состоянии enter_name И НЕ в состоянии enter_phone И т.д. И НЕ команда
         self.router.message.register(
             self.handle_unexpected_text,
-            F.text,                       # только текстовые сообщения
-            ~F.text.startswith("/"),      # ИСКЛЮЧИТЬ slash-команды (/start, /help, ...)
+            F.text,
+            ~Command(),  # НЕ команда (например, /start, /help и т.д.)
             ~StateFilter(RegistrationStates.enter_name),      # НЕ в состоянии enter_name
             ~StateFilter(RegistrationStates.enter_phone),      # И НЕ в состоянии enter_phone
             ~StateFilter(RegistrationStates.enter_loyalty_card),  # И НЕ в состоянии enter_loyalty_card
@@ -101,15 +101,6 @@ class FixedSmartFallbackHandler:
     async def handle_unexpected_text(self, message: types.Message, state: FSMContext):
         """ИСПРАВЛЕННЫЙ обработчик неожиданных текстовых сообщений"""
         
-        # ГЛАВНАЯ ЗАЩИТА: никогда не трогаем slash-команды (/start, /help и т.п.)
-        # Их должны обрабатывать Command-фильтры в других роутерах.
-        if message.text and message.text.startswith("/"):
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.debug(f"Fallback handler skipping slash command: {message.text}")
-            # Позволяем другим хендлерам обработать команду
-            raise SkipHandler()
-        
         # КРИТИЧЕСКАЯ ЗАЩИТА: Проверяем известные команды/кнопки, которые должны обрабатываться другими обработчиками
         # Если это известная команда, НЕ обрабатываем её здесь
         known_commands = [
@@ -138,7 +129,7 @@ class FixedSmartFallbackHandler:
             import logging
             logger = logging.getLogger(__name__)
             logger.debug(f"Fallback handler skipping known command: {message.text}")
-            raise SkipHandler()
+            return
         
         # Также проверяем частичное совпадение для длинных команд
         for cmd in known_commands:
@@ -146,7 +137,7 @@ class FixedSmartFallbackHandler:
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.debug(f"Fallback handler skipping known command (partial match): {message.text}")
-                raise SkipHandler()
+                return
         
         current_state = await state.get_state()
         
