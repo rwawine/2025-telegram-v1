@@ -238,6 +238,11 @@ class RegistrationHandler:
             logger.warning(f"enter_name handler called but state is {current_state}, not enter_name!")
             return
         
+        # КРИТИЧЕСКИ ВАЖНО: Игнорируем кнопку "⬅️ Назад в меню" - она обрабатывается отдельным обработчиком
+        if message.text == "⬅️ Назад в меню":
+            logger.info(f"enter_name handler ignoring '⬅️ Назад в меню' button - should be handled by cancel_registration_to_menu")
+            return
+        
         full_name = message.text or ""
         
         from bot.context_manager import get_context_manager
@@ -300,6 +305,10 @@ class RegistrationHandler:
         )
 
     async def enter_phone(self, message: types.Message, state: FSMContext) -> None:
+        # КРИТИЧЕСКИ ВАЖНО: Игнорируем кнопку "⬅️ Назад в меню" - она обрабатывается отдельным обработчиком
+        if message.text == "⬅️ Назад в меню":
+            return
+        
         phone_number = message.text or ""
         if message.text == "✏️ Ввести вручную":
             await message.answer(
@@ -351,6 +360,10 @@ class RegistrationHandler:
         )
 
     async def enter_loyalty_card(self, message: types.Message, state: FSMContext) -> None:
+        # КРИТИЧЕСКИ ВАЖНО: Игнорируем кнопку "⬅️ Назад в меню" - она обрабатывается отдельным обработчиком
+        if message.text == "⬅️ Назад в меню":
+            return
+        
         loyalty_card = message.text or ""
         if not validate_loyalty_card(loyalty_card):
             await message.answer(
