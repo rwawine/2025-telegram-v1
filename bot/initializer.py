@@ -62,16 +62,16 @@ class BotInitializer:
         # Поэтому регистрируем в обратном порядке: сначала fallback (низкий приоритет),
         # затем специфичные обработчики (высокий приоритет)
         
-        # 1. Fallback handlers (lowest priority - регистрируем ПЕРВЫМИ)
-        setup_fixed_fallback_handlers(bot.dispatcher)
-        logger.info("✅ Fallback handlers registered")
-        
-        # 2. Specific handlers (medium priority)
+        # IMPORTANT about priority:
+        # In practice, routers registered EARLIER tend to see updates earlier.
+        # We want global commands and concrete feature handlers to win over
+        # generic fallback handlers and only use fallback as a last resort.
+
+        # 1. Specific handlers (registration/common/support)
         setup_common_handlers(bot.dispatcher)
         setup_support_handlers(bot.dispatcher)
-        
+
         # Use already created upload_path
-        # 3. Registration handlers (highest priority - регистрируем ПОСЛЕДНИМИ)
         setup_registration_handlers(
             bot.dispatcher,
             upload_dir=upload_path,
@@ -79,11 +79,15 @@ class BotInitializer:
             bot=bot.bot,
         )
         logger.info("✅ Specific handlers registered")
-        
-        # 4. Global commands (highest priority - регистрируем ПОСЛЕДНИМИ)
+
+        # 2. Global commands (should work from ANY state, including before fallback)
         setup_global_commands(bot.dispatcher)
         logger.info("✅ Global commands registered")
-        
+
+        # 3. Fallback handlers (lowest priority – register LAST)
+        setup_fixed_fallback_handlers(bot.dispatcher)
+        logger.info("✅ Fallback handlers registered")
+
         # 4. Middleware
         setup_fsm_middleware(bot.dispatcher)
         setup_rate_limit_middleware(

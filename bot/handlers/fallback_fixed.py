@@ -99,6 +99,14 @@ class FixedSmartFallbackHandler:
     async def handle_unexpected_text(self, message: types.Message, state: FSMContext):
         """ИСПРАВЛЕННЫЙ обработчик неожиданных текстовых сообщений"""
         
+        # ГЛАВНАЯ ЗАЩИТА: никогда не трогаем slash-команды (/start, /help и т.п.)
+        # Их должны обрабатывать Command-фильтры в других роутерах.
+        if message.text and message.text.startswith("/"):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Fallback handler skipping slash command: {message.text}")
+            return
+        
         # КРИТИЧЕСКАЯ ЗАЩИТА: Проверяем известные команды/кнопки, которые должны обрабатываться другими обработчиками
         # Если это известная команда, НЕ обрабатываем её здесь
         known_commands = [
