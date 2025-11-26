@@ -90,8 +90,26 @@ class FixedSmartFallbackHandler:
         )
         
         # Обработчик для неизвестных callback queries
+        # Исключаем известные префиксы, чтобы не перехватывать их обработку
+        # Используем отрицательные фильтры для каждого известного префикса
         self.router.callback_query.register(
             self.handle_unknown_callback,
+            ~F.data.startswith("info_"),      # Информационные кнопки (common.py)
+            ~F.data.startswith("faq_"),       # FAQ кнопки (support.py)
+            ~F.data.startswith("support_"),   # Кнопки поддержки (support.py)
+            ~F.data.startswith("quick_nav_"), # Быстрая навигация (fallback_fixed.py)
+            ~F.data.startswith("edit_"),      # Редактирование данных (registration.py)
+            ~F.data.startswith("confirm_"),   # Подтверждение регистрации (registration.py)
+            ~F.data.startswith("cancel_"),    # Отмена регистрации (registration.py)
+            ~F.data.startswith("cat_"),       # Категории поддержки (support.py)
+            ~F.data.startswith("view_ticket_"), # Просмотр тикета (support.py)
+            ~F.data.startswith("reply_ticket_"), # Ответ на тикет (support.py)
+            ~F.data.startswith("add_to_ticket_"), # Добавление к тикету (support.py)
+            F.data != "back_to_tickets_list", # Назад к списку тикетов (support.py)
+            F.data != "faq_back",             # Назад к FAQ (support.py)
+            F.data != "info_back",            # Назад к меню информации (common.py)
+            F.data != "create_ticket",        # Создать тикет (support.py)
+            F.data != "explain_leaflet",      # Объяснение лифлета (registration.py)
         )
     
     async def handle_unexpected_text(self, message: types.Message, state: FSMContext):
